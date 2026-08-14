@@ -93,7 +93,7 @@ const Scanners = {
         <div class="card glass section-gap" id="email-pane-paste">
           <textarea class="input" id="email-input" placeholder="Paste the full email content here — including subject and sender if possible…"></textarea>
           <div style="display:flex;justify-content:flex-end;margin-top:14px">
-            <button class="btn btn-primary" style="width:auto" id="email-btn">${Icons.scan} Analyze Email</button>
+            <button class="btn btn-primary btn-sm" style="width:auto" id="email-btn">${Icons.scan} Analyze Email</button>
           </div>
         </div>
         <div class="card glass section-gap" id="email-pane-eml" hidden>
