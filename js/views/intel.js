@@ -80,9 +80,9 @@ const IntelViews = {
         <h4>${Icons.shieldCheck} How to protect yourself</h4>
         <ul>${(d.protect || ['Never click links from unexpected messages', 'Verify through official apps/websites only', 'Enable two-factor authentication', 'Report to ngCERT (cert.gov.ng) and your bank']).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
         <div class="divider"></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" style="width:auto" onclick="location.hash='#/assistant';this.closest('.modal-scrim').remove()">${Icons.bot} Ask AI about this</button>
-          <button class="btn btn-ghost btn-sm" onclick="toast('Alert shared to your team feed.','ok')">Share Alert</button>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="location.hash='#/assistant';this.closest('.modal-scrim').remove()">${Icons.bot} Ask AI</button>
+          <button class="btn btn-ghost" onclick="toast('Alert shared to your team feed.','ok')">Share</button>
         </div>
       </div>
     </div>`;
