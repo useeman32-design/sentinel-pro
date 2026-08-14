@@ -32,6 +32,7 @@ const ROUTES = {
   notifications:      { title: 'Notifications', sub: 'Alerts & activity', view: () => MiscViews.notifications(), bind: () => MiscViews.bindNotifications() },
   settings:           { title: 'Settings', sub: 'Make Sentinel yours', view: () => MiscViews.settings(), bind: () => MiscViews.bindSettings() },
   profile:            { title: 'Profile', sub: 'Your account', view: () => MiscViews.profile(), bind: () => MiscViews.bindProfile() },
+  more:               { title: 'More', sub: 'Everything else, one tap away', view: () => MiscViews.more() },
 };
 
 const NAV = [
@@ -59,10 +60,10 @@ const NAV = [
 
 const BOTTOM_NAV = [
   { route: 'dashboard', label: 'Home', icon: 'dashboard' },
+  { sheet: true, label: 'Scan', icon: 'scan' },
+  { center: true },                                   // center: AI assistant
   { route: 'threat-intel', label: 'Threats', icon: 'radar' },
-  { scan: true },
-  { route: 'assistant', label: 'AI Chat', icon: 'bot' },
-  { route: 'notifications', label: 'Alerts', icon: 'bell', badge: true },
+  { route: 'more', label: 'More', icon: 'more' },
 ];
 
 const App = {
@@ -118,15 +119,17 @@ const App = {
             <button class="icon-btn burger" id="burger">${Icons.menu}</button>
             <div class="page-title">${ROUTES[r].title || ''}<div class="page-sub">${ROUTES[r].sub || ''}</div></div>
             <button class="icon-btn" title="Notifications" onclick="location.hash='#/notifications'">${Icons.bell}${State.unread ? '<span class="dot"></span>' : ''}</button>
-            <button class="icon-btn" title="Toggle theme" id="theme-quick">${State.settings.theme === 'light' ? '🌙' : '☀️'}</button>
+            <button class="icon-btn" title="Toggle theme" id="theme-quick">${State.settings.theme === 'light' ? Icons.moon : Icons.sun}</button>
           </div>
           <div id="page"></div>
         </main>
 
         <nav class="bottom-nav"><div class="bn-row">
-          ${BOTTOM_NAV.map(n => n.scan
-            ? `<button class="bn-scan" id="bn-scan" title="Quick Scan">${Icons.scan}</button>`
-            : `<a class="bn-item ${n.route === r ? 'active' : ''}" href="#/${n.route}">${Icons[n.icon]}<span>${n.label}</span>${n.badge && State.unread ? '<span class="dot"></span>' : ''}</a>`).join('')}
+          ${BOTTOM_NAV.map(n => {
+            if (n.center) return `<button class="bn-scan" id="bn-ai" title="AI Assistant">${Icons.bot}</button>`;
+            if (n.sheet) return `<button class="bn-item" id="bn-scan-sheet">${Icons[n.icon]}<span>${n.label}</span></button>`;
+            return `<a class="bn-item ${n.route === r ? 'active' : ''}" href="#/${n.route}">${Icons[n.icon]}<span>${n.label}</span>${n.badge && State.unread ? '<span class="dot"></span>' : ''}</a>`;
+          }).join('')}
         </div></nav>
 
         <div class="sheet" id="scan-sheet">
@@ -147,7 +150,8 @@ const App = {
     const closeAll = () => { sidebar.classList.remove('open'); sheet.classList.remove('show'); scrim.classList.remove('show'); };
     document.getElementById('burger').addEventListener('click', () => { sidebar.classList.add('open'); scrim.classList.add('show'); });
     scrim.addEventListener('click', closeAll);
-    document.getElementById('bn-scan').addEventListener('click', () => { sheet.classList.add('show'); scrim.classList.add('show'); });
+    document.getElementById('bn-scan-sheet').addEventListener('click', () => { sheet.classList.add('show'); scrim.classList.add('show'); });
+    document.getElementById('bn-ai').addEventListener('click', () => { location.hash = '#/assistant'; });
     sheet.addEventListener('click', e => { if (e.target.closest('a')) closeAll(); });
     sidebar.addEventListener('click', e => { if (e.target.closest('a')) closeAll(); });
     document.getElementById('theme-quick').addEventListener('click', () => {
@@ -189,6 +193,7 @@ const App = {
 
   init() {
     App.applyTheme();
+    Charts.initTooltips();
     document.getElementById('splash-logo').innerHTML = logoSVG(84);
     window.addEventListener('hashchange', () => App.render());
 

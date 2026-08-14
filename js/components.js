@@ -39,6 +39,12 @@ const Icons = {
   play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>',
+  bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>',
+  news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0V9"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>',
+  fingerprint: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>',
   google: '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A11 11 0 0 0 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>',
 };
 
@@ -76,25 +82,56 @@ function timeAgo(ts) {
   return Math.floor(s / 86400) + 'd ago';
 }
 
-/* ---------- SVG Charts (no external libs) ---------- */
+/* ---------- SVG Charts (no external libs, fully interactive) ---------- */
 const Charts = {
+  /* Delegated tooltip: any .hit element with data-tip shows a floating tooltip
+     on hover (desktop) and tap (mobile). */
+  initTooltips() {
+    if (Charts._tipInit) return;
+    Charts._tipInit = true;
+    const show = (target) => {
+      const box = target.closest('.chart-box');
+      if (!box) return;
+      let tip = box.querySelector('.chart-tip');
+      if (!tip) { tip = document.createElement('div'); tip.className = 'chart-tip'; box.appendChild(tip); }
+      const d = target.dataset;
+      tip.innerHTML = `<div class="tt-label">${esc(d.tipLabel || '')}</div><div class="tt-value" style="color:${d.tipColor || 'var(--green)'}">${esc(d.tipValue || '')}</div>`;
+      const br = box.getBoundingClientRect(), tr = target.getBoundingClientRect();
+      tip.style.left = (tr.left - br.left + tr.width / 2) + 'px';
+      tip.style.top = (tr.top - br.top) + 'px';
+      tip.classList.add('show');
+    };
+    const hide = () => document.querySelectorAll('.chart-tip.show').forEach(t => t.classList.remove('show'));
+    document.addEventListener('pointerover', e => { const t = e.target.closest('.hit'); if (t) show(t); });
+    document.addEventListener('pointerout', e => { if (e.target.closest('.hit')) hide(); });
+    document.addEventListener('click', e => {
+      const t = e.target.closest('.hit');
+      if (t) { show(t); clearTimeout(Charts._tapTo); Charts._tapTo = setTimeout(hide, 1800); }
+      else hide();
+    });
+  },
+
   line(points, opts = {}) {
     const W = 560, H = 190, P = 26;
     const max = Math.max(...points.map(p => p.v)) * 1.15 || 1;
     const step = (W - P * 2) / (points.length - 1);
+    const color = opts.color || '#00FF88';
     const xy = points.map((p, i) => [P + i * step, H - P - (p.v / max) * (H - P * 2)]);
     const path = xy.map((c, i) => (i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
     const area = path + ` L ${xy[xy.length - 1][0]} ${H - P} L ${xy[0][0]} ${H - P} Z`;
     const gid = 'ag' + Math.random().toString(36).slice(2, 7);
     return `<div class="chart-box line-anim"><svg viewBox="0 0 ${W} ${H}">
       <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="${opts.color || '#00FF88'}" stop-opacity=".28"/>
-        <stop offset="1" stop-color="${opts.color || '#00FF88'}" stop-opacity="0"/>
+        <stop offset="0" stop-color="${color}" stop-opacity=".28"/>
+        <stop offset="1" stop-color="${color}" stop-opacity="0"/>
       </linearGradient></defs>
       ${[0.25, 0.5, 0.75].map(f => `<line x1="${P}" y1="${P + (H - 2 * P) * f}" x2="${W - P}" y2="${P + (H - 2 * P) * f}" stroke="rgba(148,163,184,.1)" stroke-dasharray="4 5"/>`).join('')}
       <path d="${area}" fill="url(#${gid})"/>
-      <path class="line" d="${path}" fill="none" stroke="${opts.color || '#00FF88'}" stroke-width="2.5" stroke-linecap="round"/>
-      ${xy.map((c, i) => `<circle cx="${c[0]}" cy="${c[1]}" r="3.2" fill="${opts.color || '#00FF88'}"><title>${esc(points[i].l)}: ${points[i].v}</title></circle>`).join('')}
+      <path class="line" d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+      ${xy.map((c, i) => `<g class="hit" data-tip-label="${esc(points[i].l)}" data-tip-value="${points[i].v}${esc(opts.unit || '')}" data-tip-color="${color}">
+        <circle cx="${c[0]}" cy="${c[1]}" r="13" fill="transparent"/>
+        <circle cx="${c[0]}" cy="${c[1]}" r="3.4" fill="${color}" style="pointer-events:none"/>
+      </g>`).join('')}
       ${xy.map((c, i) => i % Math.ceil(points.length / 7) === 0 ? `<text x="${c[0]}" y="${H - 7}" font-size="10" fill="#5A667D" text-anchor="middle">${esc(points[i].l)}</text>` : '').join('')}
     </svg></div>`;
   },
@@ -112,7 +149,10 @@ const Charts = {
       ${points.map((p, i) => {
         const h = (p.v / max) * (H - 2 * P);
         const x = P + i * step + (step - bw) / 2;
-        return `<rect x="${x.toFixed(1)}" y="${(H - P - h).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" rx="5" fill="url(#bgrad)" style="animation-delay:${i * 60}ms"><title>${esc(p.l)}: ${p.v}</title></rect>
+        return `<g class="hit" data-tip-label="${esc(p.l)}" data-tip-value="${p.v}${esc(opts.unit || '')}" data-tip-color="#00FF88">
+          <rect x="${(P + i * step).toFixed(1)}" y="${P}" width="${step.toFixed(1)}" height="${H - 2 * P}" fill="transparent"/>
+          <rect x="${x.toFixed(1)}" y="${(H - P - h).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" rx="5" fill="url(#bgrad)" style="animation-delay:${i * 60}ms"/>
+        </g>
         <text x="${(x + bw / 2).toFixed(1)}" y="${H - 7}" font-size="10" fill="#5A667D" text-anchor="middle">${esc(p.l)}</text>`;
       }).join('')}
     </svg></div>`;
@@ -124,9 +164,9 @@ const Charts = {
     let off = 0;
     const segs = items.map(it => {
       const frac = it.v / total;
-      const seg = `<circle class="donut-seg" cx="95" cy="95" r="${R}" fill="none" stroke="${it.c}" stroke-width="26"
+      const seg = `<circle class="donut-seg hit" data-tip-label="${esc(it.l)}" data-tip-value="${it.v} (${Math.round(frac * 100)}%)" data-tip-color="${it.c}" cx="95" cy="95" r="${R}" fill="none" stroke="${it.c}" stroke-width="26"
         stroke-dasharray="${(frac * C - 2).toFixed(1)} ${(C - frac * C + 2).toFixed(1)}"
-        stroke-dashoffset="${(-off * C).toFixed(1)}" transform="rotate(-90 95 95)"><title>${esc(it.l)}: ${it.v} (${Math.round(frac * 100)}%)</title></circle>`;
+        stroke-dashoffset="${(-off * C).toFixed(1)}" transform="rotate(-90 95 95)"/>`;
       off += frac;
       return seg;
     }).join('');
@@ -138,6 +178,35 @@ const Charts = {
       <div class="legend" style="flex-direction:column;gap:9px;align-items:flex-start">
         ${items.map(it => `<div class="legend-item"><span class="legend-dot" style="background:${it.c}"></span>${esc(it.l)} <b style="color:var(--text)">&nbsp;${it.v}</b></div>`).join('')}
       </div></div>`;
+  },
+
+  /* mini sparkline for stat cards */
+  spark(values, color = '#00FF88', type = 'line') {
+    const W = 120, H = 34, P = 3;
+    const max = Math.max(...values) || 1, min = Math.min(...values);
+    const range = (max - min) || 1;
+    if (type === 'bars') {
+      const bw = (W - 2 * P) / values.length * 0.62;
+      const step = (W - 2 * P) / values.length;
+      return `<div class="stat-spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${values.map((v, i) => {
+          const h = Math.max(2, ((v - min) / range) * (H - 2 * P) * .85 + 3);
+          return `<rect x="${(P + i * step + (step - bw) / 2).toFixed(1)}" y="${(H - P - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${color}" opacity="${i === values.length - 1 ? 1 : 0.45}"/>`;
+        }).join('')}
+      </svg></div>`;
+    }
+    const step = (W - 2 * P) / (values.length - 1);
+    const xy = values.map((v, i) => [P + i * step, H - P - ((v - min) / range) * (H - 2 * P) * .9]);
+    const path = xy.map((c, i) => (i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+    const gid = 'sg' + Math.random().toString(36).slice(2, 7);
+    return `<div class="stat-spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${color}" stop-opacity=".3"/><stop offset="1" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient></defs>
+      <path d="${path} L ${xy[xy.length - 1][0]} ${H} L ${P} ${H} Z" fill="url(#${gid})"/>
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+      <circle cx="${xy[xy.length - 1][0]}" cy="${xy[xy.length - 1][1]}" r="2.6" fill="${color}"/>
+    </svg></div>`;
   },
 
   scoreRing(score, size = 128) {

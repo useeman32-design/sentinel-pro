@@ -16,25 +16,80 @@ const IntelViews = {
   },
   async bindIntel() {
     const data = await API.getThreatIntel();
+    IntelViews._alerts = data.alerts;
     const root = document.getElementById('intel-root');
     if (!root) return;
     root.innerHTML = `
       <div class="grid grid-2">
-        <div class="card"><div class="card-title">${Icons.activity} Threat Volume — Nigeria (7 days)</div>${Charts.line(data.trends, { color: '#FF4D6D' })}</div>
+        <div class="card"><div class="card-title">${Icons.activity} Threat Volume — Nigeria (7 days)</div>${Charts.line(data.trends, { color: '#FF4D6D', unit: ' threats' })}</div>
         <div class="card"><div class="card-title">${Icons.radar} Categories This Week</div>${Charts.donut(data.categories)}</div>
       </div>
       <div class="section-gap card">
         <div class="card-title">${Icons.globe} Live Security Alerts<span class="spacer"></span><span class="pill danger"><span class="pdot"></span>LIVE</span></div>
-        ${data.alerts.map((a, i) => `
-          <div class="list-item" style="animation:fadeUp .4s ease both;animation-delay:${i * 70}ms">
-            <div class="list-icon ${a.level === 'danger' ? 'red' : a.level === 'warn' ? 'amber' : 'blue'}">${a.level === 'danger' ? Icons.alert : a.level === 'warn' ? Icons.zap : Icons.info}</div>
-            <div class="list-body">
-              <div class="list-title" style="white-space:normal">${esc(a.title)}</div>
-              <div class="list-sub" style="white-space:normal;margin-top:4px">${esc(a.desc)}</div>
-              <div style="margin-top:7px;display:flex;gap:8px;align-items:center"><span class="tag">${esc(a.tag)}</span><span class="hint">${a.time}</span></div>
-            </div>
-          </div>`).join('')}
+        <div class="search-bar" style="margin-bottom:12px">${Icons.search}
+          <input class="input" id="intel-search" placeholder="Search threats — e.g. WhatsApp, CBN, loan app…"></div>
+        <div id="intel-list"></div>
       </div>`;
+    IntelViews.renderAlerts('');
+    document.getElementById('intel-search').addEventListener('input', e => IntelViews.renderAlerts(e.target.value));
+  },
+
+  renderAlerts(query) {
+    const list = document.getElementById('intel-list');
+    if (!list) return;
+    const q = query.trim().toLowerCase();
+    const items = IntelViews._alerts.filter(a => !q || (a.title + ' ' + a.desc + ' ' + a.tag).toLowerCase().includes(q));
+    if (!items.length) {
+      list.innerHTML = `<div class="empty">${Icons.search}<div style="font-weight:600;color:var(--text)">No threats match “${esc(query)}”</div><div class="hint" style="margin-top:5px">Try a different keyword — or good news, that threat isn't active.</div></div>`;
+      return;
+    }
+    list.innerHTML = items.map((a, i) => `
+      <div class="list-item intel-row" data-idx="${IntelViews._alerts.indexOf(a)}" style="animation:fadeUp .4s ease both;animation-delay:${i * 60}ms;cursor:pointer">
+        <div class="list-icon ${a.level === 'danger' ? 'red' : a.level === 'warn' ? 'amber' : 'blue'}">${a.level === 'danger' ? Icons.alert : a.level === 'warn' ? Icons.zap : Icons.info}</div>
+        <div class="list-body">
+          <div class="list-title" style="white-space:normal">${esc(a.title)}</div>
+          <div class="list-sub" style="white-space:normal;margin-top:4px">${esc(a.desc)}</div>
+          <div style="margin-top:7px;display:flex;gap:8px;align-items:center"><span class="tag">${esc(a.tag)}</span><span class="hint">${a.time}</span><span class="card-link" style="margin-left:auto">Details →</span></div>
+        </div>
+      </div>`).join('');
+    list.querySelectorAll('.intel-row').forEach(row =>
+      row.addEventListener('click', () => IntelViews.openThreat(+row.dataset.idx)));
+  },
+
+  /* ---------- Threat detail modal ---------- */
+  openThreat(idx) {
+    const a = IntelViews._alerts[idx];
+    if (!a) return;
+    const d = a.detail || {};
+    const scrim = document.createElement('div');
+    scrim.className = 'modal-scrim';
+    scrim.innerHTML = `<div class="modal">
+      <div class="modal-head">
+        <div class="list-icon ${a.level === 'danger' ? 'red' : a.level === 'warn' ? 'amber' : 'blue'}" style="flex:none">${a.level === 'danger' ? Icons.alert : a.level === 'warn' ? Icons.zap : Icons.info}</div>
+        <h3>${esc(a.title)}<div style="margin-top:6px;display:flex;gap:8px;align-items:center"><span class="tag">${esc(a.tag)}</span><span class="hint">${a.time}</span><span class="pill ${a.level === 'danger' ? 'danger' : a.level === 'warn' ? 'warn' : 'info'}"><span class="pdot"></span>${a.level === 'danger' ? 'ACTIVE' : a.level === 'warn' ? 'SPREADING' : 'MONITORING'}</span></div></h3>
+        <button class="modal-close">${Icons.x}</button>
+      </div>
+      <div class="modal-body">
+        ${d.illus ? `<div class="modal-illus">${d.illus}</div>` : ''}
+        <h4>${Icons.info} What's happening</h4>
+        <p>${esc(d.what || a.desc)}</p>
+        <h4>${Icons.radar} How the attack works</h4>
+        <ul>${(d.how || ['Attackers contact victims through a trusted-looking channel.', 'A convincing pretext creates urgency or excitement.', 'The victim is directed to a malicious link or asked for sensitive data.']).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <h4>${Icons.eye} Warning signs</h4>
+        <ul>${(d.signs || ['Unsolicited message with urgent language', 'Links to unfamiliar domains', 'Requests for OTP, PIN, BVN or passwords']).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <h4>${Icons.shieldCheck} How to protect yourself</h4>
+        <ul>${(d.protect || ['Never click links from unexpected messages', 'Verify through official apps/websites only', 'Enable two-factor authentication', 'Report to ngCERT (cert.gov.ng) and your bank']).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <div class="divider"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" style="width:auto" onclick="location.hash='#/assistant';this.closest('.modal-scrim').remove()">${Icons.bot} Ask AI about this</button>
+          <button class="btn btn-ghost btn-sm" onclick="toast('Alert shared to your team feed.','ok')">Share Alert</button>
+        </div>
+      </div>
+    </div>`;
+    const close = () => scrim.remove();
+    scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
+    scrim.querySelector('.modal-close').addEventListener('click', close);
+    document.body.appendChild(scrim);
   },
 
   /* ---------- REPORTS ---------- */

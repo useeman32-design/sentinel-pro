@@ -117,6 +117,49 @@ const MiscViews = {
     });
   },
 
+  /* ---------- MORE (mobile hub) ---------- */
+  more() {
+    const u = State.user || { name: 'Guest User', email: 'guest@sentinel.ai', plan: 'Free' };
+    const initials = u.name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    const tile = (href, icon, bg, fg, name, sub) => `
+      <a class="more-tile" href="${href}">
+        <div class="mt-icon" style="background:${bg};color:${fg}">${icon}</div>
+        <div class="mt-name">${name}</div><div class="mt-sub">${sub}</div>
+      </a>`;
+    return `
+      <a class="card glass" href="#/profile" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--text)">
+        <div class="avatar" style="width:52px;height:52px;font-size:18px">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px">${esc(u.name)}</div>
+          <div class="hint">${esc(u.email)}</div>
+        </div>
+        <span class="pill info">${esc(u.plan || 'Free')}</span>
+      </a>
+
+      <div class="nav-group" style="padding-left:2px">Tools &amp; Insights</div>
+      <div class="more-grid">
+        ${tile('#/profile', Icons.user, 'var(--green-dim)', 'var(--green)', 'Profile', 'Account & subscription')}
+        ${tile('#/reports', Icons.report, 'var(--blue-dim)', 'var(--blue)', 'Reports', 'Export security PDFs')}
+        ${tile('#/training', Icons.grad, 'var(--amber-dim)', 'var(--amber)', 'Cyber Academy', 'Courses & certificates')}
+        ${tile('#/assistant', Icons.bot, 'var(--red-dim)', 'var(--red)', 'AI Assistant', 'Ask security questions')}
+      </div>
+
+      <div class="nav-group" style="padding-left:2px">Protection</div>
+      <div class="more-grid">
+        ${tile('#/password-checker', Icons.key, 'var(--blue-dim)', 'var(--blue)', 'Password Checker', 'Strength & crack time')}
+        ${tile('#/breach-monitor', Icons.eye, 'var(--amber-dim)', 'var(--amber)', 'Breach Monitor', 'Email exposure check')}
+        ${tile('#/notifications', Icons.bell, 'var(--red-dim)', 'var(--red)', 'Notifications', 'Alerts & activity')}
+        ${tile('#/settings', Icons.settings, 'var(--green-dim)', 'var(--green)', 'Settings', 'Theme, language, keys')}
+      </div>
+
+      <div class="section-gap card" style="text-align:center">
+        <div style="display:flex;justify-content:center;margin-bottom:8px">${logoSVG(34)}</div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:14px">SENTINEL <span style="color:var(--green)">AI</span></div>
+        <div class="hint" style="margin-top:3px">Detect. Protect. Prevent. · v1.0</div>
+        <button class="btn btn-danger btn-sm" style="width:auto;margin-top:14px" onclick="App.logout()">${Icons.logout} Sign Out</button>
+      </div>`;
+  },
+
   /* ---------- PROFILE ---------- */
   profile() {
     const u = State.user || { name: 'Guest User', email: 'guest@sentinel.ai', plan: 'Free', role: 'Member' };

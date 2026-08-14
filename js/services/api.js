@@ -312,14 +312,96 @@ const Sim = {
     ], 700);
   },
 
+  _illus(type) {
+    // small inline SVG illustrations for threat detail modals
+    const base = (inner) => `<svg viewBox="0 0 520 150" style="background:linear-gradient(135deg,rgba(0,200,255,.06),rgba(0,255,136,.05))">${inner}</svg>`;
+    if (type === 'sms') return base(`
+      <rect x="40" y="18" width="150" height="114" rx="14" fill="#16203A" stroke="rgba(148,163,184,.25)"/>
+      <rect x="52" y="34" width="126" height="30" rx="8" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.4)"/>
+      <text x="60" y="47" font-size="8" fill="#FF4D6D" font-weight="bold">CBN-ALERT</text>
+      <text x="60" y="58" font-size="7" fill="#8B98AF">Your account will be blocked...</text>
+      <rect x="52" y="72" width="126" height="14" rx="7" fill="rgba(0,200,255,.12)"/>
+      <text x="60" y="82" font-size="7" fill="#00C8FF">http://cbn-upgrade.tk/verify</text>
+      <path d="M210 75 L300 75" stroke="#FF4D6D" stroke-width="2" stroke-dasharray="6 5" marker-end="none"/>
+      <path d="M292 68 L304 75 L292 82 Z" fill="#FF4D6D"/>
+      <rect x="320" y="28" width="160" height="94" rx="10" fill="#16203A" stroke="rgba(255,77,109,.5)"/>
+      <rect x="334" y="44" width="132" height="12" rx="6" fill="rgba(148,163,184,.15)"/>
+      <rect x="334" y="62" width="132" height="12" rx="6" fill="rgba(148,163,184,.15)"/>
+      <rect x="334" y="86" width="70" height="16" rx="8" fill="rgba(255,77,109,.3)"/>
+      <text x="344" y="97" font-size="8" fill="#FF4D6D" font-weight="bold">SUBMIT BVN</text>
+      <text x="330" y="24" font-size="8" fill="#FF4D6D">⚠ FAKE BANK PAGE</text>`);
+    if (type === 'whatsapp') return base(`
+      <circle cx="110" cy="75" r="42" fill="rgba(0,255,136,.1)" stroke="rgba(0,255,136,.4)"/>
+      <text x="110" y="70" font-size="9" fill="#00FF88" text-anchor="middle" font-weight="bold">VICTIM</text>
+      <text x="110" y="84" font-size="7" fill="#8B98AF" text-anchor="middle">receives "voting" link</text>
+      <path d="M165 75 L245 75" stroke="#FFB020" stroke-width="2" stroke-dasharray="6 5"/><path d="M237 68 L249 75 L237 82 Z" fill="#FFB020"/>
+      <rect x="260" y="45" width="110" height="60" rx="10" fill="#16203A" stroke="rgba(255,176,32,.5)"/>
+      <text x="315" y="70" font-size="8" fill="#FFB020" text-anchor="middle">FAKE VOTING SITE</text>
+      <text x="315" y="84" font-size="7" fill="#8B98AF" text-anchor="middle">asks for 6-digit code</text>
+      <path d="M375 75 L435 75" stroke="#FF4D6D" stroke-width="2" stroke-dasharray="6 5"/><path d="M427 68 L439 75 L427 82 Z" fill="#FF4D6D"/>
+      <circle cx="465" cy="75" r="30" fill="rgba(255,77,109,.12)" stroke="rgba(255,77,109,.5)"/>
+      <text x="465" y="72" font-size="8" fill="#FF4D6D" text-anchor="middle" font-weight="bold">ACCOUNT</text>
+      <text x="465" y="83" font-size="8" fill="#FF4D6D" text-anchor="middle" font-weight="bold">STOLEN</text>`);
+    if (type === 'ponzi') return base(`
+      <path d="M60 120 L140 95 L220 105 L300 60 L380 75 L460 25" stroke="#00FF88" stroke-width="2.5" fill="none"/>
+      <path d="M380 75 L460 25 L460 120 L380 120 Z" fill="rgba(255,77,109,.15)"/>
+      <path d="M460 25 L460 130" stroke="#FF4D6D" stroke-width="2" stroke-dasharray="5 5"/>
+      <text x="300" y="45" font-size="9" fill="#00FF88">"400% returns guaranteed!"</text>
+      <text x="392" y="110" font-size="9" fill="#FF4D6D" font-weight="bold">COLLAPSE</text>
+      <circle cx="460" cy="25" r="5" fill="#FF4D6D"/>`);
+    if (type === 'apk') return base(`
+      <rect x="60" y="30" width="120" height="90" rx="12" fill="#16203A" stroke="rgba(148,163,184,.25)"/>
+      <text x="120" y="62" font-size="9" fill="#FFB020" text-anchor="middle" font-weight="bold">loan-app.apk</text>
+      <text x="120" y="78" font-size="7" fill="#8B98AF" text-anchor="middle">from Telegram group</text>
+      <path d="M195 75 L265 75" stroke="#FF4D6D" stroke-width="2" stroke-dasharray="6 5"/><path d="M257 68 L269 75 L257 82 Z" fill="#FF4D6D"/>
+      <g font-size="8" fill="#FF4D6D">
+        <rect x="285" y="30" width="180" height="22" rx="8" fill="rgba(255,77,109,.12)" stroke="rgba(255,77,109,.35)"/><text x="295" y="44">✗ Reads ALL your contacts</text>
+        <rect x="285" y="60" width="180" height="22" rx="8" fill="rgba(255,77,109,.12)" stroke="rgba(255,77,109,.35)"/><text x="295" y="74">✗ Uploads your photos</text>
+        <rect x="285" y="90" width="180" height="22" rx="8" fill="rgba(255,77,109,.12)" stroke="rgba(255,77,109,.35)"/><text x="295" y="104">✗ Blackmails defaulters</text>
+      </g>`);
+    return base(`
+      <rect x="170" y="25" width="180" height="100" rx="14" fill="#16203A" stroke="rgba(0,200,255,.4)"/>
+      <rect x="185" y="45" width="150" height="14" rx="7" fill="rgba(0,200,255,.15)"/>
+      <rect x="185" y="67" width="150" height="14" rx="7" fill="rgba(0,200,255,.15)"/>
+      <rect x="185" y="95" width="70" height="16" rx="8" fill="rgba(0,200,255,.3)"/>
+      <text x="196" y="106" font-size="8" fill="#00C8FF" font-weight="bold">Bank App</text>
+      <rect x="150" y="15" width="180" height="100" rx="14" fill="rgba(255,77,109,.1)" stroke="rgba(255,77,109,.6)" stroke-dasharray="6 4"/>
+      <text x="240" y="10" font-size="8" fill="#FF4D6D" text-anchor="middle">MALICIOUS OVERLAY CAPTURES YOUR LOGIN</text>`);
+  },
+
   threatIntel() {
     return Sim.delay({
       alerts: [
-        { level: 'danger', title: 'Active: Fake CBN “account upgrade” SMS wave', desc: 'Mass SMS campaign impersonating the Central Bank of Nigeria directing victims to credential-harvesting pages. Over 12,000 reports this week.', time: '2h ago', tag: 'Phishing' },
-        { level: 'danger', title: 'WhatsApp hijack via fake voting links', desc: 'Attackers send “vote for my child in a competition” links that capture WhatsApp verification codes and take over accounts.', time: '6h ago', tag: 'Account Takeover' },
-        { level: 'warn', title: 'Ponzi platform “AgroYield 400%” trending', desc: 'Investment scam promising 400% agricultural returns spreading through Telegram and Facebook groups across Lagos and Abuja.', time: '1d ago', tag: 'Investment Fraud' },
-        { level: 'warn', title: 'Malicious “Loan App” APKs on 3rd-party stores', desc: 'Predatory loan apps exfiltrating contacts and photos for blackmail. Avoid sideloading loan apps outside Google Play.', time: '1d ago', tag: 'Malware' },
-        { level: 'info', title: 'New Android banking trojan variant detected', desc: 'The “Anatsa” family has added overlay attacks targeting two Nigerian mobile banking apps. Update your apps to the latest versions.', time: '2d ago', tag: 'Malware' },
+        { level: 'danger', title: 'Active: Fake CBN “account upgrade” SMS wave', desc: 'Mass SMS campaign impersonating the Central Bank of Nigeria directing victims to credential-harvesting pages. Over 12,000 reports this week.', time: '2h ago', tag: 'Phishing',
+          detail: { illus: Sim._illus('sms'),
+            what: 'A coordinated smishing campaign is impersonating the Central Bank of Nigeria, telling recipients their bank account will be blocked unless they "upgrade" it. The links lead to pixel-perfect fake bank pages that harvest BVN, card details and OTPs. Over 12,000 reports have been filed this week across all major networks.',
+            how: ['Victim receives an SMS appearing to come from "CBN-ALERT" or their bank\'s sender ID (sender IDs can be spoofed).', 'The message threatens account suspension within 24-48 hours to create panic.', 'The link opens a cloned bank website on a free domain (.tk, .xyz).', 'Any credentials entered are instantly relayed to the fraudsters, who empty the account within minutes.'],
+            signs: ['SMS claims your account will be "blocked" or needs an "upgrade"', 'Link uses a strange domain — real banks use their official .com/.ng domains', 'Message creates urgency with a deadline', 'CBN never sends SMS to individual bank customers — ever'],
+            protect: ['Never click links in banking SMS — open your bank\'s official app instead', 'Your bank and CBN will NEVER request BVN, PIN or OTP via SMS', 'Forward scam SMS to 7726 to report', 'If you entered details: call your bank\'s fraud line NOW and change your passwords'] } },
+        { level: 'danger', title: 'WhatsApp hijack via fake voting links', desc: 'Attackers send “vote for my child in a competition” links that capture WhatsApp verification codes and take over accounts.', time: '6h ago', tag: 'Account Takeover',
+          detail: { illus: Sim._illus('whatsapp'),
+            what: 'A fast-spreading account-takeover scheme where compromised WhatsApp accounts message their contacts asking them to "vote" in a child\'s competition. The voting page asks victims to enter a 6-digit code "to confirm your vote" — that code is actually their own WhatsApp verification code, and entering it hands the account to the attacker.',
+            how: ['A friend\'s already-hijacked account sends you a voting link — so the message looks trustworthy.', 'The fake voting site asks for your phone number "to register your vote".', 'Attackers trigger a WhatsApp registration on their device with your number.', 'The site asks you to type the SMS code you just received — doing so completes their takeover of YOUR account.', 'Your account is then used to scam your own contacts, repeating the cycle.'],
+            signs: ['Any site or person asking for a 6-digit code sent to your phone', 'Voting/competition links from friends who never mentioned it before', 'Sudden logout of your WhatsApp account'],
+            protect: ['NEVER type a WhatsApp SMS code anywhere except WhatsApp itself', 'Enable two-step verification: Settings → Account → Two-step verification', 'If hijacked, re-register your number in WhatsApp immediately to kick the attacker out', 'Warn your contacts as soon as possible'] } },
+        { level: 'warn', title: 'Ponzi platform “AgroYield 400%” trending', desc: 'Investment scam promising 400% agricultural returns spreading through Telegram and Facebook groups across Lagos and Abuja.', time: '1d ago', tag: 'Investment Fraud',
+          detail: { illus: Sim._illus('ponzi'),
+            what: 'A classic Ponzi scheme dressed up as an agritech investment platform. "AgroYield" promises 400% returns in 90 days on farming investments. Early investors are paid with new investors\' deposits to build credibility, and recruiters earn commissions — until the operators disappear with everyone\'s money.',
+            how: ['Aggressive marketing in Telegram/Facebook groups with fake testimonials and dashboards.', 'Small early payouts convince victims to invest larger sums and recruit family.', 'Withdrawal "delays" begin, blamed on banks or system upgrades.', 'The platform and its operators vanish — typically within 3-6 months.'],
+            signs: ['Guaranteed returns above 20-30% per year are a mathematical red flag — 400% is impossible', 'Pressure to recruit others for bonuses', 'Not registered with SEC Nigeria', 'Payouts only via personal bank accounts or crypto'],
+            protect: ['Check any platform against the SEC Nigeria list at sec.gov.ng before investing', 'If returns sound too good to be true, they are', 'Never invest money you cannot afford to lose in unregulated platforms', 'Report suspected schemes to EFCC and SEC'] } },
+        { level: 'warn', title: 'Malicious “Loan App” APKs on 3rd-party stores', desc: 'Predatory loan apps exfiltrating contacts and photos for blackmail. Avoid sideloading loan apps outside Google Play.', time: '1d ago', tag: 'Malware',
+          detail: { illus: Sim._illus('apk'),
+            what: 'Predatory loan apps distributed as APK files through Telegram, WhatsApp and third-party stores request invasive permissions on install. They copy your entire contact list and photo gallery. When repayment is "due" (often with hidden fees and impossible timelines), operators send defamatory messages to your contacts and threaten to leak private photos.',
+            how: ['App is shared as an APK outside Google Play to bypass store policies.', 'On install it demands contacts, storage, SMS and camera permissions.', 'All data is uploaded to the operators\' servers before any loan is issued.', 'Harassment and blackmail begin days later, regardless of repayment.'],
+            signs: ['Loan app asks for contacts and photos — no legitimate lender needs these', 'Distributed via APK link instead of official stores', 'No physical address, CBN license number, or real customer service'],
+            protect: ['Only install loan apps from Google Play, and check the lender is CBN-licensed', 'Never grant contacts/gallery access to a loan app', 'If victimized: revoke permissions, uninstall, report to FCCPC (fccpc.gov.ng) and NDPC', 'Warn contacts to ignore defamatory messages — you are the victim of a crime'] } },
+        { level: 'info', title: 'New Android banking trojan variant detected', desc: 'The “Anatsa” family has added overlay attacks targeting two Nigerian mobile banking apps. Update your apps to the latest versions.', time: '2d ago', tag: 'Malware',
+          detail: { illus: Sim._illus('overlay'),
+            what: 'Security researchers identified a new variant of the Anatsa banking trojan that now targets Nigerian mobile banking apps. It uses "overlay attacks" — drawing an invisible fake login screen on top of your real banking app to capture credentials as you type them.',
+            how: ['Trojan arrives inside seemingly harmless apps (PDF readers, QR scanners) that pass initial store review.', 'After install, it downloads its malicious payload and requests Accessibility permissions.', 'When you open your banking app, a pixel-perfect fake login overlay captures your credentials.', 'It can also intercept SMS OTPs to complete fraudulent transfers.'],
+            signs: ['An app requests Accessibility access without a clear reason', 'Phone slows down or battery drains after installing a utility app', 'Banking app "logs you out" unexpectedly and asks you to re-enter full details'],
+            protect: ['Update your banking apps — patched versions detect known overlays', 'Never grant Accessibility permission to apps that don\'t genuinely need it', 'Install apps only from Google Play and check developer names carefully', 'Enable biometric login for banking apps where available'] } },
       ],
       trends: [ { l: 'Mon', v: 132 }, { l: 'Tue', v: 158 }, { l: 'Wed', v: 141 }, { l: 'Thu', v: 189 }, { l: 'Fri', v: 214 }, { l: 'Sat', v: 176 }, { l: 'Sun', v: 148 } ],
       categories: [

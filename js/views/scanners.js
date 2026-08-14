@@ -92,7 +92,9 @@ const Scanners = {
         </div>
         <div class="card glass section-gap" id="email-pane-paste">
           <textarea class="input" id="email-input" placeholder="Paste the full email content here — including subject and sender if possible…"></textarea>
-          <button class="btn btn-primary section-gap" id="email-btn">${Icons.scan} Analyze Email</button>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px">
+            <button class="btn btn-primary" style="width:auto" id="email-btn">${Icons.scan} Analyze Email</button>
+          </div>
         </div>
         <div class="card glass section-gap" id="email-pane-eml" hidden>
           <div class="drop-zone" data-drop="eml">${Icons.upload}<div class="dz-title">Drop your .eml file here</div><div class="dz-sub">or tap to browse · max 10 MB</div>
@@ -129,7 +131,9 @@ const Scanners = {
     return `${Scanners.hero(Icons.sms, 'SMS Scam Detector', 'Paste any SMS and Sentinel AI will match it against lottery, bank, investment, WhatsApp, and crypto scam patterns active in Nigeria.')}
       <div class="scan-form card glass">
         <textarea class="input" id="sms-input" placeholder='e.g. "Congratulations! Your number has won ₦5,000,000 in the MTN promo. Click bit.ly/claim-now to receive your prize…"'></textarea>
-        <button class="btn btn-primary section-gap" id="sms-btn">${Icons.scan} Detect Scam</button>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px">
+          <button class="btn btn-primary" style="width:auto" id="sms-btn">${Icons.scan} Detect Scam</button>
+        </div>
       </div>
       <div id="scan-out"></div>`;
   },
