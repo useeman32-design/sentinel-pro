@@ -656,11 +656,14 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 
 @media (max-width: 860px) {
   .sidebar { transform: translateX(-105%); box-shadow: none; width: min(300px, 84vw); }
   .sidebar.open { transform: none; box-shadow: 24px 0 60px rgba(0,0,0,.45); }
-  .main { margin-left: 0; padding: 0 16px calc(96px + var(--safe-bottom)); }
+  .main { margin-left: 0; padding: 0 16px calc(104px + var(--safe-bottom)); }
   .topbar .burger { display: inline-flex; }
   .bottom-nav { display: block; }
   .page-title { font-size: 17px; }
-  .chat-shell { height: calc(100dvh - 210px); }
+  .chat-shell { height: calc(100dvh - 200px); }
+  .chat-input-bar { padding-bottom: 0; }
+  .chat-input-bar .input { padding: 12px 14px; }
+  .send-btn { width: 45px; height: 45px; }
 }
 @media (max-width: 560px) {
   .grid { gap: 12px; }
