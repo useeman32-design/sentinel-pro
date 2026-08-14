@@ -549,7 +549,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 
 .modal-body li { margin-bottom: 5px; }
 .modal-illus { border-radius: 14px; border: 1px solid var(--border); margin: 4px 0 6px; overflow: hidden; }
 .modal-illus svg { display: block; width: 100%; height: auto; }
-@media (max-width: 560px) { .modal-scrim { align-items: flex-end; padding: 0; } .modal { max-width: none; border-radius: 22px 22px 0 0; max-height: 88dvh; } }
+.modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.modal-actions .btn { padding: 8px 13px; font-size: 12px; border-radius: 9px; width: auto; }
+@media (max-width: 560px) {
+  .modal-scrim { align-items: center; padding: 16px 14px calc(16px + var(--safe-bottom)); }
+  .modal { max-width: none; border-radius: 20px; max-height: 82dvh; }
+  .modal-head { padding: 16px 16px 12px; }
+  .modal-head h3 { font-size: 15px; }
+  .modal-body { padding: 14px 16px; font-size: 13px; }
+}
 
 /* ============ NIGERIA MAP ============ */
 .ng-map-card { position: relative; overflow: hidden; }
