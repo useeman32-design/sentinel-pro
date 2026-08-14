@@ -132,7 +132,7 @@ const Scanners = {
       <div class="scan-form card glass">
         <textarea class="input" id="sms-input" placeholder='e.g. "Congratulations! Your number has won ₦5,000,000 in the MTN promo. Click bit.ly/claim-now to receive your prize…"'></textarea>
         <div style="display:flex;justify-content:flex-end;margin-top:14px">
-          <button class="btn btn-primary" style="width:auto" id="sms-btn">${Icons.scan} Detect Scam</button>
+          <button class="btn btn-primary btn-sm" style="width:auto" id="sms-btn">${Icons.scan} Detect Scam</button>
         </div>
       </div>
       <div id="scan-out"></div>`;
