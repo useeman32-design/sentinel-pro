@@ -145,6 +145,8 @@ textarea.input { resize: vertical; min-height: 120px; line-height: 1.55; }
 }
 .btn:active { transform: scale(.97); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn svg { width: 15px; height: 15px; flex: none; }
+.btn-sm svg { width: 13px; height: 13px; }
 .btn-primary {
   background: linear-gradient(135deg, #00E67A, #00B8E6);
   color: #04121F; width: 100%;
