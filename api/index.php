@@ -32,6 +32,7 @@ switch (true) {
              'time' => date('c')]);
 
   case $route === 'register' && $method === 'POST': {
+    rate_limit('register', client_ip(), 10, 3600);
     $name = trim($in['name'] ?? ''); $email = strtolower(trim($in['email'] ?? '')); $pass = $in['password'] ?? '';
     if (!$name || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($pass) < 8)
       respond(['error' => 'Provide a valid name, email and password (min 8 chars).'], 422);
@@ -48,6 +49,7 @@ switch (true) {
   }
 
   case $route === 'login' && $method === 'POST': {
+    rate_limit('login', client_ip() . '|' . strtolower(trim($in['email'] ?? '')), 8, 900);
     $st = db()->prepare('SELECT * FROM users WHERE email=?');
     $st->execute([strtolower(trim($in['email'] ?? ''))]);
     $u = $st->fetch();
