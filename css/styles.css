@@ -590,19 +590,66 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 
   .modal-body { padding: 14px 16px; font-size: 13px; }
 }
 
-/* ============ NIGERIA MAP ============ */
+/* ============ NIGERIA THREAT MAP (Leaflet) ============ */
 .ng-map-card { position: relative; overflow: hidden; }
-.ng-map-wrap { position: relative; max-width: 480px; margin: 0 auto; }
-.ng-map-wrap svg { display: block; width: 100%; height: auto; }
-.ng-outline { fill: rgba(0,200,255,.05); stroke: url(#ngGrad); stroke-width: 1.6; filter: drop-shadow(0 0 8px rgba(0,255,136,.35)); }
-.ng-grid line { stroke: rgba(0,200,255,.07); }
-.ng-node { cursor: pointer; }
-.ng-node .pulse { animation: nodePulse 2.2s ease-out infinite; transform-origin: center; transform-box: fill-box; }
-@keyframes nodePulse { 0% { opacity: .85; transform: scale(.4); } 70% { opacity: 0; transform: scale(2.6); } 100% { opacity: 0; transform: scale(2.6); } }
+.tmap-layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+.tmap-box { position: relative; min-width: 0; }
+#ng-map {
+  width: 100%; height: 380px;
+  background: #030e18;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  outline: none;
+}
+[data-theme="light"] #ng-map { background: #dfe9f2; }
+/* dark leaflet controls */
+.leaflet-control-zoom { border: 1px solid var(--border-strong) !important; border-radius: 10px !important; overflow: hidden; box-shadow: var(--shadow) !important; }
+.leaflet-control-zoom a {
+  background: var(--surface) !important; color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important; width: 30px !important; height: 30px !important; line-height: 30px !important;
+}
+.leaflet-control-zoom a:hover { background: var(--surface-2) !important; color: var(--green) !important; }
+.leaflet-container { font-family: var(--font) !important; }
+.tmap-tooltip {
+  background: var(--surface-2) !important; border: 1px solid var(--border-strong) !important;
+  border-radius: 10px !important; box-shadow: var(--shadow) !important; padding: 8px 11px !important;
+}
+.tmap-tooltip::before { display: none; }
+.tmap-tt { display: flex; flex-direction: column; gap: 2px; }
+.tmap-tt b { color: var(--text); font-size: 12.5px; font-family: var(--font-display); }
+.tmap-tt span { color: var(--text-dim); font-size: 11px; }
+.tmap-tt em { color: var(--green); font-style: normal; font-weight: 700; }
+.tmap-legend {
+  position: absolute; left: 12px; bottom: 12px; z-index: 500;
+  display: flex; align-items: center; gap: 7px;
+  background: var(--glass); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1px; color: var(--text-dim);
+}
+.tmap-legend-bar { width: 70px; height: 7px; border-radius: 5px; background: linear-gradient(90deg, #0d2036, #0a3d4e, #006870, #00a076, #00FF88); }
+/* side panel */
+.tmap-panel { min-width: 0; }
+.tmap-panel-inner { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 15px; animation: fadeUp .3s ease both; }
+.tmap-hint { display: flex; align-items: center; gap: 9px; color: var(--text-dim); font-size: 12.5px; }
+.tmap-hint svg { width: 16px; height: 16px; color: var(--blue); flex: none; }
+.tmap-top-row { display: flex; align-items: center; gap: 9px; padding: 8px 6px; border-radius: 9px; cursor: pointer; font-size: 12.5px; transition: background .15s; }
+.tmap-top-row:hover { background: var(--surface-2); }
+.tmap-top-row b { font-family: var(--font-display); font-size: 12px; width: 22px; text-align: right; color: var(--green); }
+.tmap-rank { width: 18px; height: 18px; border-radius: 6px; background: var(--surface-2); color: var(--text-dim); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+.tmap-top-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.tmap-mini-track { width: 52px; height: 5px; border-radius: 4px; background: var(--surface-2); overflow: hidden; flex: none; }
+.tmap-mini-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--blue), var(--green)); }
+.tmap-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 10px; text-align: center; }
+.tmap-stat .ts-n { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.tmap-stat .ts-l { font-size: 9.5px; color: var(--text-dim); letter-spacing: .8px; text-transform: uppercase; margin-top: 3px; }
 .ng-stats { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; margin-top: 4px; }
 .ng-stat { text-align: center; }
 .ng-stat .n { font-family: var(--font-display); font-size: 19px; font-weight: 700; }
 .ng-stat .l { font-size: 10.5px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+@media (max-width: 860px) {
+  .tmap-layout { grid-template-columns: 1fr; }
+  #ng-map { height: 300px; }
+}
 
 /* ============ SEARCH BAR ============ */
 .search-bar { position: relative; }
