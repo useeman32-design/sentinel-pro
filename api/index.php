@@ -98,6 +98,7 @@ switch (true) {
   /* ================= SCANNERS (REAL) ================= */
   case $route === 'link-scan' && $method === 'POST': {
     $u = require_auth();
+    check_scan_quota($u);
     $url = trim($in['url'] ?? ''); if (!$url) respond(['error' => 'URL required'], 422);
     $r = Engine::scanUrl($url);
     save_scan((int)$u['id'], 'link', $url, $r);
@@ -106,6 +107,7 @@ switch (true) {
 
   case $route === 'email-scan' && $method === 'POST': {
     $u = require_auth();
+    check_scan_quota($u);
     $c = $in['content'] ?? ''; if (mb_strlen($c) < 20) respond(['error' => 'Provide more email content'], 422);
     $r = Engine::scanText('email', $c);
     save_scan((int)$u['id'], 'email', $r['subject'], $r);
@@ -114,6 +116,7 @@ switch (true) {
 
   case $route === 'sms-scan' && $method === 'POST': {
     $u = require_auth();
+    check_scan_quota($u);
     $c = $in['content'] ?? ''; if (mb_strlen($c) < 10) respond(['error' => 'Provide the SMS text'], 422);
     $r = Engine::scanText('sms', $c);
     save_scan((int)$u['id'], 'sms', $r['subject'], $r);
@@ -123,6 +126,7 @@ switch (true) {
   case $route === 'qr-scan' && $method === 'POST': {
     // client decodes QR image locally (jsQR) and sends decoded text — we analyze the destination
     $u = require_auth();
+    check_scan_quota($u);
     $decoded = trim($in['decoded'] ?? '');
     if (!$decoded) respond(['error' => 'No QR content decoded'], 422);
     $r = preg_match('~^https?://|^www\.~i', $decoded) ? Engine::scanUrl($decoded) : Engine::scanText('sms', $decoded);
@@ -133,6 +137,7 @@ switch (true) {
 
   case $route === 'file-scan' && $method === 'POST': {
     $u = require_auth();
+    check_scan_quota($u);
     if (empty($_FILES['file'])) respond(['error' => 'No file uploaded'], 422);
     $f = $_FILES['file'];
     if ($f['error'] !== UPLOAD_ERR_OK) respond(['error' => 'Upload failed (code ' . $f['error'] . ')'], 422);
@@ -144,6 +149,7 @@ switch (true) {
 
   case $route === 'breach-check' && $method === 'POST': {
     $u = require_auth();
+    check_scan_quota($u);
     $email = trim($in['email'] ?? '');
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) respond(['error' => 'Valid email required'], 422);
     $r = Engine::breachCheck($email);
