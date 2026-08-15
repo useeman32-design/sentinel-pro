@@ -23,7 +23,13 @@ switch (true) {
 
   /* ================= AUTH ================= */
   case $route === 'health':
-    respond(['ok' => true, 'driver' => $GLOBALS['DB_DRIVER'] ?? '?', 'time' => date('c')]);
+    // touching db() here surfaces DB connection/migration problems immediately
+    try { db(); $drv = $GLOBALS['DB_DRIVER']; $db_ok = true; }
+    catch (Throwable $e) { $drv = 'FAILED: ' . $e->getMessage(); $db_ok = false; }
+    respond(['ok' => $db_ok, 'driver' => $drv, 'php' => PHP_VERSION,
+             'ext' => ['pdo_mysql' => extension_loaded('pdo_mysql'), 'pdo_sqlite' => extension_loaded('pdo_sqlite'),
+                       'curl' => extension_loaded('curl'), 'zip' => class_exists('ZipArchive')],
+             'time' => date('c')]);
 
   case $route === 'register' && $method === 'POST': {
     $name = trim($in['name'] ?? ''); $email = strtolower(trim($in['email'] ?? '')); $pass = $in['password'] ?? '';
@@ -193,7 +199,7 @@ switch (true) {
 
   case $route === 'notifications/read' && $method === 'POST': {
     $u = require_auth();
-    db()->prepare("UPDATE notifications SET read_at=datetime('now') WHERE user_id=?")->execute([$u['id']]);
+    db()->prepare("UPDATE notifications SET read_at=? WHERE user_id=?")->execute([date('Y-m-d H:i:s'), $u['id']]);
     respond(['ok' => true]);
   }
 
@@ -321,5 +327,11 @@ switch (true) {
     respond(['error' => 'Not found: ' . $route], 404);
 }
 } catch (Throwable $e) {
-  respond(['error' => 'Server error', 'detail' => setting('dev_mode') === '1' ? $e->getMessage() : null], 500);
+  // always log full details server-side
+  $msg = $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine();
+  @error_log('[' . date('c') . "] {$route} — {$msg}\n" . $e->getTraceAsString() . "\n", 3, __DIR__ . '/data/error.log');
+  // show detail unless dev_mode is explicitly OFF
+  $detail = $msg;
+  try { if (setting('dev_mode') === '0') $detail = null; } catch (Throwable $e2) { /* keep detail */ }
+  respond(['error' => 'Server error', 'detail' => $detail], 500);
 }

@@ -69,30 +69,22 @@ function migrate(PDO $pdo): void {
 }
 
 function seed(PDO $pdo): void {
-  if ((int)$pdo->query('SELECT COUNT(*) c FROM users')->fetch()['c'] > 0) return;
+  // idempotent: if a previous seed died midway (e.g. permissions/strict-mode),
+  // finish the missing parts instead of leaving the platform half-configured.
+  $count = fn(string $t) => (int)$pdo->query("SELECT COUNT(*) c FROM $t")->fetch()['c'];
+  if ($count('settings') === 0) {
+    $pdo->prepare('INSERT INTO settings(k,v) VALUES(?,?)')->execute(['dev_mode', '1']);
+  }
+  if ($count('users') > 0) {
+    if ($count('signatures') === 0) seed_signatures($pdo);
+    return;
+  }
   // super admin — CHANGE THIS PASSWORD after first login
   $st = $pdo->prepare("INSERT INTO users(name,email,password_hash,role,plan,verified) VALUES(?,?,?,?,?,1)");
   $st->execute(['Super Admin', 'admin@sentinel.ai', password_hash('Admin@1234', PASSWORD_BCRYPT), 'admin', 'enterprise']);
 
-  $sig = $pdo->prepare("INSERT INTO signatures(channel,category,pattern,weight) VALUES(?,?,?,?)");
-  $rules = [
-    ['sms','Bank Scam','/(bvn|acct|account (blocked|suspended)|debit|atm|card.*(block|expire)|kyc|upgrade)/i',26],
-    ['sms','Lottery Scam','/(congratulation|won|winner|promo|prize|lucky|draw)/i',24],
-    ['sms','Investment Scam','/(invest|profit|return|double your|forex|trading platform|roi)/i',24],
-    ['sms','Crypto Scam','/(bitcoin|crypto|usdt|wallet|airdrop|binance)/i',22],
-    ['sms','WhatsApp Scam','/(whatsapp|wa\.me|chat me|dm me)/i',16],
-    ['sms','Malicious Link','/(http|bit\.ly|tinyurl|cutt\.ly|click)/i',14],
-    ['sms','Urgency Pressure','/(urgent|now|today|immediately|last chance|24 ?h)/i',10],
-    ['email','False Urgency','/(urgent|immediately|within 24|within 48|act now|final notice|suspended)/i',16],
-    ['email','Credential Phish','/(verify your account|confirm your identity|update your (kyc|bvn|details)|re-?activate)/i',20],
-    ['email','Sensitive Data Request','/(bvn|nin|atm pin|card number|cvv|otp|one-?time password)/i',26],
-    ['email','Suspicious Link Push','/(click (here|the link)|http:\/\/|bit\.ly|tinyurl)/i',12],
-    ['email','Generic Greeting','/(dear customer|dear user|dear beneficiary|valued customer)/i',10],
-    ['email','Advance-Fee Scam','/(won|winner|lottery|inheritance|million|compensation|grant|fund release)/i',22],
-    ['email','Authority Impersonation','/(cbn|central bank|efcc|nnpc|federal government).{0,80}(fee|charge|payment|deposit)/i',24],
-    ['url','Phishing Keyword','/(login|verify|secure|account|update|confirm|wallet|airdrop|bonus|giveaway|promo)/i',14],
-  ];
-  foreach ($rules as $r) $sig->execute($r);
+  seed_signatures($pdo);
+
 
   $pdo->prepare("INSERT INTO brands(name,official_domains) VALUES(?,?)")->execute(['Nigerian Banks & Fintech',
     json_encode(['gtbank'=>'gtbank.com','zenith'=>'zenithbank.com','firstbank'=>'firstbanknigeria.com','uba'=>'ubagroup.com',
@@ -117,7 +109,28 @@ function seed(PDO $pdo): void {
             ['NaijaLoaded Forum Leak','naijaloaded.com.ng','2021-06','Email, Username, IP','2.1M'],
             ['Fintech Aggregator Breach','','2023-11','Email, Phone, Partial card','5.4M']] as $b) $br->execute($b);
 
-  $pdo->prepare("INSERT INTO settings(k,v) VALUES(?,?)")->execute(['dev_mode','1']);
+}
+
+function seed_signatures(PDO $pdo): void {
+  $sig = $pdo->prepare("INSERT INTO signatures(channel,category,pattern,weight) VALUES(?,?,?,?)");
+  $rules = [
+    ['sms','Bank Scam','/(bvn|acct|account (blocked|suspended)|debit|atm|card.*(block|expire)|kyc|upgrade)/i',26],
+    ['sms','Lottery Scam','/(congratulation|won|winner|promo|prize|lucky|draw)/i',24],
+    ['sms','Investment Scam','/(invest|profit|return|double your|forex|trading platform|roi)/i',24],
+    ['sms','Crypto Scam','/(bitcoin|crypto|usdt|wallet|airdrop|binance)/i',22],
+    ['sms','WhatsApp Scam','/(whatsapp|wa\.me|chat me|dm me)/i',16],
+    ['sms','Malicious Link','/(http|bit\.ly|tinyurl|cutt\.ly|click)/i',14],
+    ['sms','Urgency Pressure','/(urgent|now|today|immediately|last chance|24 ?h)/i',10],
+    ['email','False Urgency','/(urgent|immediately|within 24|within 48|act now|final notice|suspended)/i',16],
+    ['email','Credential Phish','/(verify your account|confirm your identity|update your (kyc|bvn|details)|re-?activate)/i',20],
+    ['email','Sensitive Data Request','/(bvn|nin|atm pin|card number|cvv|otp|one-?time password)/i',26],
+    ['email','Suspicious Link Push','/(click (here|the link)|http:\/\/|bit\.ly|tinyurl)/i',12],
+    ['email','Generic Greeting','/(dear customer|dear user|dear beneficiary|valued customer)/i',10],
+    ['email','Advance-Fee Scam','/(won|winner|lottery|inheritance|million|compensation|grant|fund release)/i',22],
+    ['email','Authority Impersonation','/(cbn|central bank|efcc|nnpc|federal government).{0,80}(fee|charge|payment|deposit)/i',24],
+    ['url','Phishing Keyword','/(login|verify|secure|account|update|confirm|wallet|airdrop|bonus|giveaway|promo)/i',14],
+  ];
+  foreach ($rules as $r) $sig->execute($r);
 }
 
 /* ---------------- helpers ---------------- */
