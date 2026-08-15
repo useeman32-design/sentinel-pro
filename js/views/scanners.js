@@ -15,7 +15,7 @@ const Scanners = {
         <div class="verdict-score"><div class="vs-num" style="color:var(--${cls === 'safe' ? 'green' : cls === 'warn' ? 'amber' : 'red'})">${r.risk}</div><div class="vs-cap">Risk /100</div></div>
       </div>
       <div class="result-rows">
-        ${r.decoded ? `<div class="result-row"><div class="rk">Decoded URL</div><div class="rv" style="font-family:monospace;font-size:12.5px">${esc(r.decoded)}</div></div>` : ''}
+        ${(r.decoded || (r.meta && r.meta.decoded)) ? `<div class="result-row"><div class="rk">Decoded Content</div><div class="rv" style="font-family:monospace;font-size:12.5px">${esc(r.decoded || r.meta.decoded)}</div></div>` : ''}
         <div class="result-row"><div class="rk">Threat Type</div><div class="rv"><span class="pill ${cls}">${esc(r.threatType)}</span></div></div>
         <div class="result-row"><div class="rk">Explanation</div><div class="rv">${esc(r.explanation)}</div></div>
         <div class="result-row"><div class="rk">Recommendation</div><div class="rv">${esc(r.recommendation)}</div></div>
@@ -49,7 +49,7 @@ const Scanners = {
     } catch (e) {
       clearInterval(iv);
       container.innerHTML = '';
-      toast('Scan failed. Please try again.', 'err');
+      toast(e.message || 'Scan failed. Please try again.', 'err');
     }
   },
 
@@ -122,7 +122,13 @@ const Scanners = {
       Scanners.runScan(document.getElementById('scan-out'), steps, () => API.emailScan(v));
     });
     Scanners.bindDrops(file => {
-      Scanners.runScan(document.getElementById('scan-out'), steps, () => API.emailScan('uploaded:' + file.name + ' dear customer verify your account urgent'));
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || '').slice(0, 100000);
+        if (text.length < 20) return toast('Could not extract text from this file. For screenshots, OCR arrives with a future update — paste the text instead.', 'err');
+        Scanners.runScan(document.getElementById('scan-out'), steps, () => API.emailScan(text));
+      };
+      reader.readAsText(file);
     });
   },
 
@@ -157,10 +163,33 @@ const Scanners = {
       <div id="scan-out"></div>`;
   },
   bindQr() {
-    Scanners.bindDrops(file => {
-      Scanners.runScan(document.getElementById('scan-out'),
-        ['Decoding QR matrix…', 'Extracting destination URL…', 'Following redirect chain safely…', 'AI destination analysis…'],
-        () => API.qrScan(file.name));
+    Scanners.bindDrops(async file => {
+      const out = document.getElementById('scan-out');
+      const decoded = await Scanners.decodeQR(file);
+      if (!decoded) return toast('No QR code found in this image. Try a clearer, closer photo.', 'err');
+      Scanners.runScan(out,
+        ['QR decoded: ' + decoded.slice(0, 40) + '…', 'Resolving destination…', 'Live TLS & blocklist check…', 'Computing risk score…'],
+        () => API.qrScan(decoded));
+    });
+  },
+
+  /* Decode a QR image entirely client-side using jsQR */
+  decodeQR(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const d = ctx.getImageData(0, 0, c.width, c.height);
+        const code = typeof jsQR === 'function' ? jsQR(d.data, c.width, c.height) : null;
+        URL.revokeObjectURL(img.src);
+        resolve(code ? code.data : null);
+      };
+      img.onerror = () => resolve(null);
+      img.src = URL.createObjectURL(file);
     });
   },
 
@@ -175,9 +204,10 @@ const Scanners = {
   },
   bindFile() {
     Scanners.bindDrops(file => {
+      if (file.size > 50 * 1024 * 1024) return toast('Max file size is 50 MB.', 'err');
       Scanners.runScan(document.getElementById('scan-out'),
-        ['Hashing file (SHA-256)…', 'Checking global malware databases…', 'Static structure analysis…', 'Scanning for embedded macros & scripts…', 'AI heuristic verdict…'],
-        () => API.fileScan(file.name, file.size));
+        ['Uploading securely…', 'Hashing file (SHA-256)…', 'Magic-byte & structure analysis…', 'Inspecting containers for macros & executables…', 'Final verdict…'],
+        () => API.fileScan(file));
     });
   },
 
@@ -259,7 +289,7 @@ const Scanners = {
         <div class="verdict">
           <div class="verdict-icon ${r.breached ? 'danger' : 'safe'}">${r.breached ? Icons.alert : Icons.shieldCheck}</div>
           <div><div class="verdict-title">${r.breached ? `Found in ${r.breaches.length} breach${r.breaches.length > 1 ? 'es' : ''}` : 'No exposure found'}</div>
-          <div class="verdict-sub">${esc(r.email)}</div></div>
+          <div class="verdict-sub">${esc(email)}</div></div>
         </div>
         ${r.breached ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Breach</th><th>Date</th><th>Exposed Data</th><th>Records</th></tr></thead>
           <tbody>${r.breaches.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${b.date}</td><td>${esc(b.data)}</td><td>${b.records}</td></tr>`).join('')}</tbody></table></div><div class="divider"></div>` : ''}
