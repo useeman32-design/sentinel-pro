@@ -63,6 +63,7 @@ function migrate(PDO $pdo): void {
       breach_date VARCHAR(12) DEFAULT '', data_types VARCHAR(255) DEFAULT '', records VARCHAR(20) DEFAULT '', verified INTEGER DEFAULT 1)",
     "CREATE TABLE IF NOT EXISTS breach_emails (id $id, email_hash CHAR(64) NOT NULL, breach_id INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(60) PRIMARY KEY, v TEXT)",
+    "CREATE TABLE IF NOT EXISTS rate_limits (bucket VARCHAR(120) PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0)",
   ];
   foreach ($tables as $sql) $pdo->exec($sql);
   seed($pdo);
