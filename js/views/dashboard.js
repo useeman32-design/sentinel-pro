@@ -55,7 +55,7 @@ const DashboardView = {
         </div>
       </div>
 
-      ${DashboardView.nigeriaMap()}
+      ${ThreatMap.html()}
 
       <div class="section-gap grid grid-main">
         <div class="card">
