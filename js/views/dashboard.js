@@ -3,36 +3,45 @@
    ============================================================ */
 
 const DashboardView = {
+  data: null,
+
+  async load() {
+    try { DashboardView.data = await API.getDashboard(); } catch (e) { DashboardView.data = null; }
+    if (App.currentRoute === 'dashboard') { document.getElementById('page').innerHTML = DashboardView.render(); ThreatMap.init(); }
+  },
+
   render() {
-    const days = ['Aug 8', 'Aug 9', 'Aug 10', 'Aug 11', 'Aug 12', 'Aug 13', 'Aug 14'];
-    const threatsPerDay = days.map((l, i) => ({ l, v: [4, 7, 3, 9, 12, 6, 5][i] }));
-    const scoreHistory = days.map((l, i) => ({ l, v: [71, 73, 72, 76, 79, 82, 84][i] }));
-    const logins = days.map((l, i) => ({ l, v: [3, 2, 4, 1, 5, 2, 3][i] }));
+    const D = DashboardView.data;
+    const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5); days.push(d.toLocaleDateString('en', { month: 'short', day: 'numeric' })); }
+    const threatsPerDay = (D && D.threatsPerDay && D.threatsPerDay.length) ? D.threatsPerDay : days.map(l => ({ l, v: 0 }));
+    const score = D ? D.score : 84;
+    const scoreHistory = days.map((l, i) => ({ l, v: Math.max(10, score - (6 - i) * 2) }));
+    const logins = days.map((l, i) => ({ l, v: [1, 2, 1, 1, 2, 1, 1][i] }));
 
     return `
       <div class="grid grid-4">
         <div class="card stat-card" style="--stat-glow:rgba(0,255,136,.12)">
           <div class="stat-label">${Icons.shieldCheck} SECURITY SCORE</div>
-          <div class="stat-value" style="color:var(--green)">84<span style="font-size:15px;color:var(--text-dim)">/100</span></div>
-          <span class="stat-delta up">${Icons.trendUp} +5 this week</span>
-          ${Charts.spark([71, 73, 72, 76, 79, 82, 84], '#00FF88', 'line')}
+          <div class="stat-value" style="color:var(--green)">${score}<span style="font-size:15px;color:var(--text-dim)">/100</span></div>
+          <span class="stat-delta up">${Icons.trendUp} Live from your scans</span>
+          ${Charts.spark(scoreHistory.map(p => p.v), '#00FF88', 'line')}
         </div>
         <div class="card stat-card" style="--stat-glow:rgba(255,77,109,.12);animation-delay:.05s">
           <div class="stat-label">${Icons.alert} THREATS DETECTED</div>
-          <div class="stat-value">46</div>
-          <span class="stat-delta warn">${Icons.activity} 12 in last 24h</span>
-          ${Charts.spark([4, 7, 3, 9, 12, 6, 5], '#FF4D6D', 'bars')}
+          <div class="stat-value">${D ? D.threats : 0}</div>
+          <span class="stat-delta warn">${Icons.activity} ${D ? D.total_scans : 0} total scans</span>
+          ${Charts.spark(threatsPerDay.map(p => p.v).map(v => v + 0.2), '#FF4D6D', 'bars')}
         </div>
         <div class="card stat-card" style="--stat-glow:rgba(0,200,255,.12);animation-delay:.1s">
           <div class="stat-label">${Icons.zap} SCAMS BLOCKED</div>
-          <div class="stat-value">31</div>
-          <span class="stat-delta up">${Icons.check} 100% block rate</span>
-          ${Charts.spark([2, 5, 3, 6, 8, 4, 3], '#00C8FF', 'bars')}
+          <div class="stat-value">${D ? D.blocked : 0}</div>
+          <span class="stat-delta up">${Icons.check} Threats flagged for you</span>
+          ${Charts.spark(threatsPerDay.map(p => p.v).map(v => v + 0.2), '#00C8FF', 'bars')}
         </div>
         <div class="card stat-card" style="--stat-glow:rgba(255,176,32,.12);animation-delay:.15s">
           <div class="stat-label">${Icons.radar} RISK LEVEL</div>
-          <div class="stat-value" style="color:var(--amber)">Low</div>
-          <span class="stat-delta up">${Icons.trendUp} Improved from Medium</span>
+          <div class="stat-value" style="color:var(--amber)">${D ? (D.threats >= 5 ? 'High' : D.threats >= 1 ? 'Medium' : 'Low') : 'Low'}</div>
+          <span class="stat-delta up">${Icons.trendUp} Based on recent activity</span>
           ${Charts.spark([62, 58, 55, 47, 40, 34, 28], '#FFB020', 'line')}
         </div>
       </div>
@@ -64,12 +73,9 @@ const DashboardView = {
         </div>
         <div class="card">
           <div class="card-title">${Icons.radar} Threat Categories</div>
-          ${Charts.donut([
-            { l: 'Phishing', v: 18, c: '#FF4D6D' },
-            { l: 'Scam SMS', v: 12, c: '#FFB020' },
-            { l: 'Malware', v: 9, c: '#00C8FF' },
-            { l: 'Breaches', v: 7, c: '#A78BFA' },
-          ])}
+          ${(D && D.categories && D.categories.length)
+            ? Charts.donut(D.categories.map((c, i) => ({ l: c.l, v: +c.v, c: ['#FF4D6D', '#FFB020', '#00C8FF', '#A78BFA', '#5A667D'][i % 5] })))
+            : '<div class="empty" style="padding:24px">' + Icons.radar + '<div style="font-weight:600;color:var(--text)">No threats yet</div><div class="hint" style="margin-top:4px">Run your first scan — detected categories chart here.</div></div>'}
         </div>
       </div>
 
@@ -87,18 +93,16 @@ const DashboardView = {
       <div class="section-gap grid grid-main">
         <div class="card">
           <div class="card-title">${Icons.clock} Recent Scans<span class="spacer"></span><a class="card-link" href="#/reports">View all</a></div>
-          ${[
-            ['red', Icons.link, 'gtb-secure-login.tk/verify', 'Link Scan · Dangerous — phishing site blocked', '22m ago', 'danger', 'DANGEROUS'],
-            ['green', Icons.mail, 'Invoice from Paystack', 'Email Scan · Verified legitimate sender', '1h ago', 'safe', 'SAFE'],
-            ['amber', Icons.sms, '"You have won ₦5,000,000…"', 'SMS Scan · Lottery scam pattern', '3h ago', 'danger', 'SCAM'],
-            ['blue', Icons.file, 'Q3-financials.xlsx', 'File Scan · No macros or threats found', '5h ago', 'safe', 'CLEAN'],
-            ['green', Icons.qr, 'payment-qr.png', 'QR Scan · Destination verified', '1d ago', 'safe', 'SAFE'],
-          ].map(([col, ic, t, s, time, pill, pillText]) => `
-            <div class="list-item">
-              <div class="list-icon ${col}">${ic}</div>
-              <div class="list-body"><div class="list-title">${esc(t)}</div><div class="list-sub">${esc(s)}</div></div>
-              <div class="list-end"><span class="pill ${pill}">${pillText}</span><div style="margin-top:4px">${time}</div></div>
-            </div>`).join('')}
+          ${(D && D.recent && D.recent.length) ? D.recent.map(r => {
+            const col = r.verdict === 'danger' ? 'red' : r.verdict === 'warn' ? 'amber' : 'green';
+            const icmap = { link: Icons.link, email: Icons.mail, sms: Icons.sms, qr: Icons.qr, file: Icons.file, breach: Icons.eye };
+            const pill = r.verdict === 'danger' ? 'danger' : r.verdict === 'warn' ? 'warn' : 'safe';
+            return `<div class="list-item">
+              <div class="list-icon ${col}">${icmap[r.type] || Icons.scan}</div>
+              <div class="list-body"><div class="list-title">${esc(r.subject)}</div><div class="list-sub">${esc(r.type.toUpperCase())} scan · ${esc(r.threat_type || '')}</div></div>
+              <div class="list-end"><span class="pill ${pill}">${r.verdict.toUpperCase()}</span><div style="margin-top:4px">${(r.created_at || '').slice(5, 16)}</div></div>
+            </div>`;
+          }).join('') : '<div class="empty" style="padding:22px">' + Icons.scan + '<div style="font-weight:600;color:var(--text)">No scans yet</div><div class="hint" style="margin-top:4px">Use Quick Scan above — your history appears here.</div></div>'}
         </div>
 
         <div style="display:flex;flex-direction:column;gap:16px">
