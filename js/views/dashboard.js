@@ -130,48 +130,4 @@ const DashboardView = {
       </div>`;
   },
 
-  /* ---------- Neon Nigeria threat map ----------
-     Real national boundary traced from Nigeria GeoJSON border data,
-     cities placed by projecting their true lat/lon coordinates. */
-  nigeriaMap() {
-    const outline = 'M176.3 268.1L147.6 278.1L137.2 276.6L126.6 282.8L104.5 282.2L89.7 264.9L80.6 245L61.1 226.8L40.4 227.1L16 227.1L17.6 182.6L16.9 165.1L22.1 147.7L30.6 139.2L44 122.1L41.1 114.7L46.5 103.6L40.3 87.2L41.4 78.1L43.3 53.4L51.2 42.3L55.1 26.4L62.3 20.5L91.9 17.2L119.6 27.5L129.9 37.9L144 38.4L157.1 31.6L190.5 45.9L204.6 45.2L220.9 33.4L237 34.3L245 30.4L259.8 32L281.2 40.1L302.8 24.6L309.3 25.7L327.9 55.9L333.1 55.3L344 66.3L341 71.3L339.5 80.5L316.3 101.8L309 119.4L305.1 133.8L299.2 139.9L293.7 159.3L278.9 170.6L274.6 184.6L268.4 195.7L265.9 207.2L246.9 216.5L231.4 205.1L220.9 205.6L204.5 221.7L196.5 222L183.4 248.6L176.3 268.1Z';
-    const nodes = [
-      { x: 35.3, y: 221.8, c: '#00FF88', city: 'Lagos', n: 214 },
-      { x: 148.4, y: 149.8, c: '#00C8FF', city: 'Abuja', n: 158 },
-      { x: 176.8, y: 68.7, c: '#FF4D6D', city: 'Kano', n: 96 },
-      { x: 135.2, y: 266.8, c: '#FFB020', city: 'Port Harcourt', n: 74 },
-      { x: 49.3, y: 196.2, c: '#A78BFA', city: 'Ibadan', n: 52 },
-      { x: 149, y: 222.1, c: '#00C8FF', city: 'Enugu', n: 43 },
-      { x: 147, y: 109.5, c: '#FF4D6D', city: 'Kaduna', n: 38 },
-      { x: 304.9, y: 72.8, c: '#FFB020', city: 'Maiduguri', n: 29 },
-      { x: 96.8, y: 224.9, c: '#00FF88', city: 'Benin City', n: 24 },
-    ];
-    return `<div class="section-gap card glass ng-map-card">
-      <div class="card-title">${Icons.globe} Live Threat Map — Nigeria<span class="spacer"></span><span class="pill danger"><span class="pdot"></span>LIVE</span></div>
-      <div class="ng-map-wrap"><div class="chart-box"><svg viewBox="0 0 360 300">
-        <defs>
-          <linearGradient id="ngGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#00FF88"/><stop offset="1" stop-color="#00C8FF"/>
-          </linearGradient>
-          <clipPath id="ngClip"><path d="${outline}"/></clipPath>
-        </defs>
-        <g class="ng-grid" clip-path="url(#ngClip)">
-          ${Array.from({ length: 12 }, (_, i) => `<line x1="${15 + i * 30}" y1="10" x2="${15 + i * 30}" y2="292"/>`).join('')}
-          ${Array.from({ length: 10 }, (_, i) => `<line x1="10" y1="${15 + i * 30}" x2="350" y2="${15 + i * 30}"/>`).join('')}
-        </g>
-        <path class="ng-outline" d="${outline}"/>
-        ${nodes.map(nd => `<g class="ng-node hit" data-tip-label="${nd.city}" data-tip-value="${nd.n} threats blocked" data-tip-color="${nd.c}">
-          <circle class="pulse" cx="${nd.x}" cy="${nd.y}" r="7" fill="none" stroke="${nd.c}" stroke-width="1.5"/>
-          <circle cx="${nd.x}" cy="${nd.y}" r="13" fill="transparent"/>
-          <circle cx="${nd.x}" cy="${nd.y}" r="4" fill="${nd.c}" style="filter:drop-shadow(0 0 5px ${nd.c})"/>
-        </g>`).join('')}
-      </svg></div></div>
-      <div class="ng-stats">
-        <div class="ng-stat"><div class="n" style="color:var(--green)">675</div><div class="l">Blocked Today</div></div>
-        <div class="ng-stat"><div class="n" style="color:var(--red)">7</div><div class="l">Active Hotspots</div></div>
-        <div class="ng-stat"><div class="n" style="color:var(--blue)">36</div><div class="l">States Covered</div></div>
-      </div>
-      <p class="hint" style="text-align:center;margin-top:10px">Tap a glowing node to see live threat activity in that city.</p>
-    </div>`;
-  },
 };
