@@ -56,9 +56,17 @@ php -S 0.0.0.0:3000 router.php
 └── models/schema.sql       # MySQL models (backend implemented later)
 ```
 
-## 🔌 Backend contract (planned PHP + MySQL)
+## 🔌 Backend (REAL — PHP + MySQL/SQLite)
 
-All requests flow through `js/services/api.js`. Flip `API.USE_BACKEND = true` once the PHP API is live. Endpoints: `/api/login`, `/api/register`, `/api/link-scan`, `/api/email-scan`, `/api/sms-scan`, `/api/qr-scan`, `/api/file-scan`, `/api/breach-check`, `/api/chat`, `/api/reports`, `/api/threat-intel`, `/api/notifications`. Until then the UI runs on realistic client-side heuristics so every module is demonstrable.
+Full REST API at `/api/*` (front controller `api/index.php`):
+- **Auth** — register/login/verify with bcrypt password hashing + hashed bearer tokens
+- **Real scanning engine** (`api/engine.php`) — live DNS resolution, TLS certificate probes, redirect-chain tracing, brand-impersonation detection, admin-managed regex signature DB (email/SMS/URL), domain blocklist, magic-byte file analysis with macro/executable detection inside ZIP/OOXML containers, PDF JavaScript/Launch detection
+- **QR** — decoded client-side with jsQR, destination analyzed server-side by the URL engine
+- **Dashboard analytics** computed from the user's real scan history
+- **Gemini chat proxy** — API key stored server-side, never exposed to browsers
+- **Super Admin API** — user management (roles/plans/suspension), signature CRUD, blocklist CRUD, threat-intel publishing, platform settings, broadcast notifications
+
+DB: MySQL first (XAMPP production), automatic SQLite fallback for dev — schema migrates and seeds itself on first request.
 
 ## 🤖 Gemini AI
 
