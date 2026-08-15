@@ -691,6 +691,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* ============ MISC ============ */
+#page { overflow-x: clip; }
+.grid-main > *, .grid-2 > *, .grid-3 > *, .grid-4 > * { max-width: 100%; overflow: hidden; }
+.list-title, .list-sub { max-width: 100%; }
+.list-end { word-break: keep-all; }
 .section-gap { margin-top: 16px; }
 .empty { text-align: center; padding: 40px 16px; color: var(--text-dim); }
 .empty svg { width: 44px; height: 44px; margin-bottom: 12px; color: var(--text-faint); }
