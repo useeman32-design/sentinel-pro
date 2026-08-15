@@ -602,6 +602,11 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 
   outline: none;
 }
 [data-theme="light"] #ng-map { background: #dfe9f2; }
+/* kill the browser focus rectangle on selected state paths — highlight follows
+   the state boundary itself (stroke), not a box */
+.leaflet-interactive:focus, .leaflet-interactive:focus-visible { outline: none !important; }
+.leaflet-container path { outline: none !important; }
+#ng-map:focus, #ng-map *:focus { outline: none !important; }
 /* dark leaflet controls */
 .leaflet-control-zoom { border: 1px solid var(--border-strong) !important; border-radius: 10px !important; overflow: hidden; box-shadow: var(--shadow) !important; }
 .leaflet-control-zoom a {
