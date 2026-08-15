@@ -17,7 +17,7 @@ const ROUTES = {
   verify:       { auth: false, view: () => AuthViews.verify(),     bind: () => AuthViews.bind('verify') },
   reset:        { auth: false, view: () => AuthViews.reset(),      bind: () => AuthViews.bind('reset') },
 
-  dashboard:          { title: 'Dashboard', sub: 'Your security command center', view: () => DashboardView.render(), bind: () => ThreatMap.init() },
+  dashboard:          { title: 'Dashboard', sub: 'Your security command center', view: () => DashboardView.render(), bind: () => { ThreatMap.init(); DashboardView.load(); } },
   'link-scanner':     { title: 'Link Scanner', sub: 'AI-powered URL threat analysis', view: () => Scanners.link(), bind: () => Scanners.bindLink() },
   'email-scanner':    { title: 'Email Scanner', sub: 'Phishing & spoofing detection', view: () => Scanners.email(), bind: () => Scanners.bindEmail() },
   'sms-scanner':      { title: 'SMS Scanner', sub: 'Scam pattern detection', view: () => Scanners.sms(), bind: () => Scanners.bindSms() },
@@ -33,6 +33,7 @@ const ROUTES = {
   settings:           { title: 'Settings', sub: 'Make Sentinel yours', view: () => MiscViews.settings(), bind: () => MiscViews.bindSettings() },
   profile:            { title: 'Profile', sub: 'Your account', view: () => MiscViews.profile(), bind: () => MiscViews.bindProfile() },
   more:               { title: 'More', sub: 'Everything else, one tap away', view: () => MiscViews.more() },
+  admin:              { title: 'Admin Panel', sub: 'Super-admin platform control', view: () => AdminView.render(), bind: () => AdminView.bind() },
 };
 
 const NAV = [
@@ -53,6 +54,7 @@ const NAV = [
   { route: 'training', label: 'Training', icon: 'grad' },
   { route: 'assistant', label: 'AI Assistant', icon: 'bot' },
   { group: 'Account' },
+  { route: 'admin', label: 'Admin Panel', icon: 'lock', adminOnly: true },
   { route: 'notifications', label: 'Notifications', icon: 'bell', badge: true },
   { route: 'settings', label: 'Settings', icon: 'settings' },
   { route: 'profile', label: 'Profile', icon: 'user' },
@@ -79,11 +81,11 @@ const App = {
     localStorage.setItem('sentinel_user', JSON.stringify(user));
     localStorage.setItem('sentinel_token', token);
   },
-  logout() {
+  logout(silent) {
     State.user = null;
     localStorage.removeItem('sentinel_user');
     localStorage.removeItem('sentinel_token');
-    toast('Signed out. Stay safe out there. 🛡️', 'info');
+    if (!silent) toast('Signed out. Stay safe out there. 🛡️', 'info');
     location.hash = '#/login';
   },
   saveSettings() { localStorage.setItem('sentinel_settings', JSON.stringify(State.settings)); },
@@ -101,7 +103,7 @@ const App = {
         <aside class="sidebar" id="sidebar">
           <div class="sidebar-head">${logoSVG(36)}<span class="brand">SENTINEL <em>AI</em></span></div>
           <nav class="sidebar-nav">
-            ${NAV.map(n => n.group
+            ${NAV.filter(n => !n.adminOnly || (State.user && State.user.role === 'admin')).map(n => n.group
               ? `<div class="nav-group">${n.group}</div>`
               : `<a class="nav-item ${n.route === r ? 'active' : ''}" href="#/${n.route}">${Icons[n.icon]}<span>${n.label}</span>${n.badge && State.unread ? `<span class="nav-badge">${State.unread}</span>` : ''}</a>`).join('')}
           </nav>
