@@ -7,7 +7,10 @@
    ============================================================ */
 
 const API = {
-  BASE: '/api',
+  /* Auto-detect base path so the app works at the domain root
+     (php -S / dedicated vhost) AND in a subdirectory
+     (XAMPP: http://localhost/sentinel-pro/). */
+  BASE: location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/api',
 
   token() { return localStorage.getItem('sentinel_token'); },
 
