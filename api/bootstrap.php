@@ -48,6 +48,23 @@ function db(): PDO {
 
 function migrate(PDO $pdo): void {
   $my = ($GLOBALS['DB_DRIVER'] ?? 'sqlite') === 'mysql';
+
+  // Detect a legacy/foreign schema (e.g. the old models/schema.sql draft was
+  // imported manually). Its users table lacks the 'verified' column and would
+  // break every query — fail fast with an actionable message.
+  if ($my) {
+    $hasUsers = $pdo->query("SHOW TABLES LIKE 'users'")->fetch();
+    if ($hasUsers) {
+      $cols = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
+      if (!in_array('verified', $cols)) {
+        throw new RuntimeException(
+          "Legacy schema detected in this database (probably an imported models/schema.sql). " .
+          "Fix: in phpMyAdmin DROP all tables in 'sentinel_ai' (or drop & recreate the empty database) — " .
+          "the backend auto-creates the correct tables on the next request. Do NOT import any .sql file.");
+      }
+    }
+  }
+
   $id = $my ? 'BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
   $now = $my ? 'DATETIME DEFAULT CURRENT_TIMESTAMP' : "TEXT DEFAULT (datetime('now'))";
   $tables = [
