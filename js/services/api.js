@@ -37,6 +37,7 @@ const API = {
   verifyEmail: (code) => API.request('/verify-email', { method: 'POST', body: { code } }),
   me: () => API.request('/me'),
   updateProfile: (name, company) => API.request('/profile', { method: 'PUT', body: { name, company } }),
+  changePassword: (current, newPass) => API.request('/change-password', { method: 'POST', body: { current, new: newPass } }),
 
   /* ---------- SCANNERS (server-side real analysis) ---------- */
   linkScan: (url) => API.request('/link-scan', { method: 'POST', body: { url } }),

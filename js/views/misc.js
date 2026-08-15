@@ -86,8 +86,8 @@ const MiscViews = {
 
       <div class="section-gap card">
         <div class="card-title">${Icons.user} Account</div>
-        <div class="set-row"><div class="set-body"><div class="set-title">Change password</div><div class="set-sub">Update your sign-in credentials</div></div>
-          <button class="btn btn-ghost btn-sm" onclick="location.hash='#/reset'">Change</button></div>
+        <div class="set-row"><div class="set-body"><div class="set-title">Change password</div><div class="set-sub">Update your sign-in credentials — other sessions are signed out</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="MiscViews.openChangePassword()">Change</button></div>
         <div class="set-row"><div class="set-body"><div class="set-title">Export my data</div><div class="set-sub">Download all scans and reports (backend: /api/export)</div></div>
           <button class="btn btn-ghost btn-sm" onclick="toast('Export queued — you\\'ll get an email when ready.','ok')">Export</button></div>
         <div class="set-row"><div class="set-body"><div class="set-title">Delete account</div><div class="set-sub">Permanently remove your account and data</div></div>
