@@ -26,18 +26,14 @@ An AI-powered cybersecurity platform protecting Nigeria's digital economy agains
 
 ## 🚀 Run it
 
-No build step. Any static server works:
-
+**Dev (PHP built-in server — SQLite auto-created, zero config):**
 ```bash
-# Option A — Node
-npx serve .
-
-# Option B — PHP (XAMPP: drop the folder in htdocs)
-php -S 0.0.0.0:8080
-
-# Option C — Python
-python3 -m http.server 8080
+php -S 0.0.0.0:3000 router.php
 ```
+
+**Production (XAMPP):** copy the folder into `htdocs`, create MySQL DB `sentinel_ai` in phpMyAdmin, set credentials in `api/bootstrap.php` — tables migrate + seed automatically on first request. `.htaccess` handles all routing.
+
+**Default super-admin:** `admin@sentinel.ai` / `Admin@1234` — ⚠️ change immediately.
 
 ## 📁 Structure
 
