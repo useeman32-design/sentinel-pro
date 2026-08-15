@@ -166,6 +166,7 @@ const App = {
 
   renderPage() {
     const r = App.currentRoute;
+    if (typeof ThreatMap !== 'undefined') ThreatMap.destroy(); // clean up Leaflet before re-render
     const page = document.getElementById('page');
     page.innerHTML = ROUTES[r].view();
     window.scrollTo({ top: 0 });
