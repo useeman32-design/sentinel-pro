@@ -33,12 +33,12 @@ function db(): PDO {
   if ($pdo) return $pdo;
   $opt = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC];
   try {
-    $c = CFG['mysql'];
+    $c = cfg('mysql');
     $pdo = new PDO("mysql:host={$c['host']};dbname={$c['db']};charset=utf8mb4", $c['user'], $c['pass'], $opt);
     $GLOBALS['DB_DRIVER'] = 'mysql';
   } catch (Throwable $e) {
-    @mkdir(dirname(CFG['sqlite_path']), 0775, true);
-    $pdo = new PDO('sqlite:' . CFG['sqlite_path'], null, null, $opt);
+    @mkdir(dirname(cfg('sqlite_path')), 0775, true);
+    $pdo = new PDO('sqlite:' . cfg('sqlite_path'), null, null, $opt);
     $pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
     $GLOBALS['DB_DRIVER'] = 'sqlite';
   }
@@ -194,7 +194,7 @@ function require_admin(): array {
 function issue_token(int $uid): string {
   $t = bin2hex(random_bytes(32));
   db()->prepare("INSERT INTO tokens(user_id,token_hash,type,expires_at) VALUES(?,?,'session',?)")
-     ->execute([$uid, hash('sha256', $t), time() + CFG['token_ttl']]);
+     ->execute([$uid, hash('sha256', $t), time() + cfg('token_ttl')]);
   return $t;
 }
 function public_user(array $u): array {
