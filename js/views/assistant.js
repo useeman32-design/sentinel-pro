@@ -119,7 +119,9 @@ const AssistantView = {
       scroll.insertAdjacentHTML('beforeend', `<div class="msg ai" id="typing-msg"><div class="m-avatar">${Icons.bot}</div><div class="m-bubble"><span class="typing"><i></i><i></i><i></i></span></div></div>`);
       scroll.scrollTop = scroll.scrollHeight;
 
-      const res = await API.chat(text, cur.messages);
+      let res;
+      try { res = await API.chat(text, cur.messages, cur.id); }
+      catch (e) { res = { reply: '⚠️ ' + e.message }; }
       await new Promise(r => setTimeout(r, 350 + Math.random() * 500));
       document.getElementById('typing-msg')?.remove();
       cur.messages.push({ role: 'ai', text: res.reply });

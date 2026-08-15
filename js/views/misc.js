@@ -8,7 +8,12 @@ const MiscViews = {
     return `<div id="notif-root">${'<div class="skel" style="height:74px;margin-bottom:10px"></div>'.repeat(4)}</div>`;
   },
   async bindNotifications() {
-    const items = await API.getNotifications();
+    let items;
+    try {
+      const res = await API.getNotifications();
+      items = res.items.map(n => ({ type: n.type, title: n.title, text: n.body || '', unread: !n.read_at,
+        time: n.created_at ? new Date(n.created_at.replace(' ', 'T') + 'Z').getTime() : Date.now() }));
+    } catch (e) { toast(e.message, 'err'); return; }
     const root = document.getElementById('notif-root');
     if (!root) return;
     State.unread = 0;
@@ -16,7 +21,7 @@ const MiscViews = {
     const iconFor = t => t === 'danger' ? ['red', Icons.alert] : t === 'warn' ? ['amber', Icons.key] : t === 'ok' ? ['green', Icons.check] : ['blue', Icons.info];
     root.innerHTML = `
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-        <button class="btn btn-ghost btn-sm" onclick="toast('All notifications marked as read.','ok')">Mark all read</button></div>
+        <button class="btn btn-ghost btn-sm" onclick="API.markNotificationsRead().then(()=>{toast('All notifications marked as read.','ok');App.renderPage();})">Mark all read</button></div>
       ${items.map((n, i) => {
         const [col, ic] = iconFor(n.type);
         return `<div class="notif-item ${n.unread ? 'unread' : ''}" style="animation-delay:${i * 60}ms">
@@ -212,17 +217,19 @@ const MiscViews = {
       </div>`;
   },
   bindProfile() {
-    document.getElementById('profile-form').addEventListener('submit', e => {
+    document.getElementById('profile-form').addEventListener('submit', async e => {
       e.preventDefault();
       const f = new FormData(e.target);
-      if (State.user) {
-        State.user.name = f.get('name');
-        State.user.company = f.get('company');
-        State.user.role = f.get('role');
-        localStorage.setItem('sentinel_user', JSON.stringify(State.user));
-      }
-      toast('Profile updated.', 'ok');
-      App.renderChrome();
+      try {
+        await API.updateProfile(f.get('name'), f.get('company'));
+        if (State.user) {
+          State.user.name = f.get('name');
+          State.user.company = f.get('company');
+          localStorage.setItem('sentinel_user', JSON.stringify(State.user));
+        }
+        toast('Profile updated.', 'ok');
+        App.renderChrome();
+      } catch (e) { toast(e.message, 'err'); }
     });
   },
 };

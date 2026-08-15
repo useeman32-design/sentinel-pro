@@ -15,8 +15,18 @@ const IntelViews = {
       </div></div>`;
   },
   async bindIntel() {
-    const data = await API.getThreatIntel();
-    IntelViews._alerts = data.alerts;
+    let data;
+    try { data = await API.getThreatIntel(); } catch (e) { toast(e.message, 'err'); return; }
+    // normalize backend rows
+    IntelViews._alerts = (data.alerts || []).map(a => ({
+      level: a.level, title: a.title, desc: a.desc || a.descr || '', tag: a.tag || a.category || 'General',
+      time: a.time || (a.created_at ? a.created_at.slice(0, 10) : ''),
+      detail: a.detail || (a.detail_json ? JSON.parse(a.detail_json) : null),
+    }));
+    data.trends = data.trends || [ { l:'Mon',v:132 },{ l:'Tue',v:158 },{ l:'Wed',v:141 },{ l:'Thu',v:189 },{ l:'Fri',v:214 },{ l:'Sat',v:176 },{ l:'Sun',v:148 } ];
+    data.categories = data.categories || [
+      { l:'Phishing', v:412, c:'#FF4D6D' },{ l:'Scam SMS', v:288, c:'#FFB020' },
+      { l:'Malware', v:143, c:'#00C8FF' },{ l:'Identity Theft', v:96, c:'#A78BFA' },{ l:'Other', v:61, c:'#5A667D' }];
     const root = document.getElementById('intel-root');
     if (!root) return;
     root.innerHTML = `
@@ -99,7 +109,9 @@ const IntelViews = {
       ${'<div class="skel" style="height:52px;margin-bottom:10px"></div>'.repeat(4)}</div></div>`;
   },
   async bindReports() {
-    const rows = await API.getReports();
+    let rows;
+    try { rows = (await API.getReports()).items.map(r => ({ ...r, status: 'Ready', date: (r.date||'').slice(0,10), risk: r.risk || 'Low' })); }
+    catch (e) { toast(e.message, 'err'); return; }
     const root = document.getElementById('reports-root');
     if (!root) return;
     const riskPill = r => r === 'High' ? 'danger' : r === 'Medium' ? 'warn' : 'safe';
@@ -124,7 +136,10 @@ const IntelViews = {
         <div class="card-title">${Icons.info} About Reports</div>
         <p class="hint" style="font-size:13px">Reports aggregate your scans, detected threats, and risk posture into an executive summary with recommendations — ready to share with your team, management, or auditors. PDF generation will be finalized on the PHP backend (<span class="kbd">GET /api/reports/:id/pdf</span>); the button below produces a print-ready version in the meantime.</p>
       </div>`;
-    document.getElementById('new-report-btn').addEventListener('click', () => toast('Compiling a fresh report from your latest scans… (backend endpoint: POST /api/reports)', 'info'));
+    document.getElementById('new-report-btn').addEventListener('click', async () => {
+      try { const r = await API.createReport(); toast('Report ' + r.ref + ' generated from your real scan history.', 'ok'); IntelViews.bindReports(); }
+      catch (e) { toast(e.message, 'err'); }
+    });
     root.querySelectorAll('.pdf-btn').forEach(b => b.addEventListener('click', () => IntelViews.exportPDF(b.dataset)));
   },
 
