@@ -17,7 +17,7 @@ const ROUTES = {
   verify:       { auth: false, view: () => AuthViews.verify(),     bind: () => AuthViews.bind('verify') },
   reset:        { auth: false, view: () => AuthViews.reset(),      bind: () => AuthViews.bind('reset') },
 
-  dashboard:          { title: 'Dashboard', sub: 'Your security command center', view: () => DashboardView.render() },
+  dashboard:          { title: 'Dashboard', sub: 'Your security command center', view: () => DashboardView.render(), bind: () => ThreatMap.init() },
   'link-scanner':     { title: 'Link Scanner', sub: 'AI-powered URL threat analysis', view: () => Scanners.link(), bind: () => Scanners.bindLink() },
   'email-scanner':    { title: 'Email Scanner', sub: 'Phishing & spoofing detection', view: () => Scanners.email(), bind: () => Scanners.bindEmail() },
   'sms-scanner':      { title: 'SMS Scanner', sub: 'Scam pattern detection', view: () => Scanners.sms(), bind: () => Scanners.bindSms() },
