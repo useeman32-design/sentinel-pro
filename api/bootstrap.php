@@ -189,6 +189,40 @@ function public_user(array $u): array {
 function notify(?int $uid, string $type, string $title, string $body): void {
   db()->prepare('INSERT INTO notifications(user_id,type,title,body) VALUES(?,?,?,?)')->execute([$uid,$type,$title,$body]);
 }
+
+/* ---- rate limiting (fixed window) ---- */
+function rate_limit(string $action, string $ident, int $max, int $windowSec): void {
+  $bucket = $action . ':' . substr(hash('sha256', $ident), 0, 32);
+  $now = time();
+  $pdo = db();
+  $st = $pdo->prepare('SELECT window_start, hits FROM rate_limits WHERE bucket=?');
+  $st->execute([$bucket]);
+  $row = $st->fetch();
+  if (!$row || $now - (int)$row['window_start'] >= $windowSec) {
+    $sql = ($GLOBALS['DB_DRIVER'] === 'mysql')
+      ? 'INSERT INTO rate_limits(bucket,window_start,hits) VALUES(?,?,1) ON DUPLICATE KEY UPDATE window_start=VALUES(window_start), hits=1'
+      : 'INSERT INTO rate_limits(bucket,window_start,hits) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET window_start=excluded.window_start, hits=1';
+    $pdo->prepare($sql)->execute([$bucket, $now]);
+    return;
+  }
+  if ((int)$row['hits'] >= $max) {
+    $wait = $windowSec - ($now - (int)$row['window_start']);
+    respond(['error' => "Too many attempts. Try again in {$wait}s."], 429);
+  }
+  $pdo->prepare('UPDATE rate_limits SET hits=hits+1 WHERE bucket=?')->execute([$bucket]);
+}
+function client_ip(): string { return $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }
+
+/* ---- plan-based daily scan quota ---- */
+function check_scan_quota(array $u): void {
+  $quotas = ['free' => 25, 'pro' => 1000, 'enterprise' => PHP_INT_MAX];
+  $max = $quotas[$u['plan']] ?? 25;
+  if ($u['role'] === 'admin' || $max === PHP_INT_MAX) return;
+  $st = db()->prepare("SELECT COUNT(*) c FROM scans WHERE user_id=? AND substr(created_at,1,10)=?");
+  $st->execute([$u['id'], date('Y-m-d')]);
+  if ((int)$st->fetch()['c'] >= $max)
+    respond(['error' => "Daily scan limit reached ({$max} on the " . ucfirst($u['plan']) . " plan). Upgrade for more."], 429);
+}
 function save_scan(int $uid, string $type, string $subject, array $r): int {
   db()->prepare('INSERT INTO scans(user_id,type,subject,verdict,risk,threat_type,explanation,recommendation,meta) VALUES(?,?,?,?,?,?,?,?,?)')
     ->execute([$uid,$type,mb_substr($subject,0,500),$r['verdict'],$r['risk'],$r['threatType'],$r['explanation'],$r['recommendation'],json_encode($r['meta'] ?? new stdClass())]);
