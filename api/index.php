@@ -80,6 +80,21 @@ switch (true) {
     respond(['ok' => true]);
   }
 
+  case $route === 'change-password' && $method === 'POST': {
+    $u = require_auth();
+    rate_limit('chpass', (string)$u['id'], 5, 900);
+    if (!password_verify($in['current'] ?? '', $u['password_hash']))
+      respond(['error' => 'Current password is incorrect.'], 422);
+    if (strlen($in['new'] ?? '') < 8) respond(['error' => 'New password must be at least 8 characters.'], 422);
+    db()->prepare('UPDATE users SET password_hash=? WHERE id=?')
+       ->execute([password_hash($in['new'], PASSWORD_BCRYPT), $u['id']]);
+    // revoke all other sessions for safety
+    db()->prepare("DELETE FROM tokens WHERE user_id=? AND type='session' AND token_hash!=?")
+       ->execute([$u['id'], hash('sha256', bearer())]);
+    notify((int)$u['id'], 'ok', 'Password changed', 'Your password was updated and other sessions were signed out.');
+    respond(['ok' => true]);
+  }
+
   /* ================= SCANNERS (REAL) ================= */
   case $route === 'link-scan' && $method === 'POST': {
     $u = require_auth();
