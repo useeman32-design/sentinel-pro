@@ -7,11 +7,26 @@ declare(strict_types=1);
 error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '0');
 
-const CFG = [
+const CFG_DEFAULTS = [
   'mysql' => ['host' => '127.0.0.1', 'db' => 'sentinel_ai', 'user' => 'root', 'pass' => ''],
   'sqlite_path' => __DIR__ . '/data/sentinel.db',
   'token_ttl' => 60 * 60 * 24 * 30, // 30 days
 ];
+
+/* Local overrides (git-ignored): copy api/config.local.example.php to
+   api/config.local.php and edit — survives every git pull untouched. */
+function cfg(string $key): mixed {
+  static $cfg = null;
+  if ($cfg === null) {
+    $cfg = CFG_DEFAULTS;
+    $local = __DIR__ . '/config.local.php';
+    if (file_exists($local)) {
+      $over = require $local;
+      if (is_array($over)) $cfg = array_replace_recursive($cfg, $over);
+    }
+  }
+  return $cfg[$key];
+}
 
 function db(): PDO {
   static $pdo = null;

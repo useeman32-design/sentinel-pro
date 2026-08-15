@@ -5,3 +5,4 @@ token.txt
 .arena-secrets/
 api/data/
 *.db
+api/config.local.php
