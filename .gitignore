@@ -3,3 +3,5 @@ node_modules/
 *.log
 token.txt
 .arena-secrets/
+api/data/
+*.db
