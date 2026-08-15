@@ -1,0 +1,185 @@
+<?php
+/* ============================================================
+   SENTINEL AI — Backend bootstrap: config, DB (PDO), helpers
+   MySQL-first (XAMPP production), SQLite fallback (dev/demo).
+   ============================================================ */
+declare(strict_types=1);
+error_reporting(E_ALL & ~E_DEPRECATED);
+ini_set('display_errors', '0');
+
+const CFG = [
+  'mysql' => ['host' => '127.0.0.1', 'db' => 'sentinel_ai', 'user' => 'root', 'pass' => ''],
+  'sqlite_path' => __DIR__ . '/data/sentinel.db',
+  'token_ttl' => 60 * 60 * 24 * 30, // 30 days
+];
+
+function db(): PDO {
+  static $pdo = null;
+  if ($pdo) return $pdo;
+  $opt = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC];
+  try {
+    $c = CFG['mysql'];
+    $pdo = new PDO("mysql:host={$c['host']};dbname={$c['db']};charset=utf8mb4", $c['user'], $c['pass'], $opt);
+    $GLOBALS['DB_DRIVER'] = 'mysql';
+  } catch (Throwable $e) {
+    @mkdir(dirname(CFG['sqlite_path']), 0775, true);
+    $pdo = new PDO('sqlite:' . CFG['sqlite_path'], null, null, $opt);
+    $pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+    $GLOBALS['DB_DRIVER'] = 'sqlite';
+  }
+  migrate($pdo);
+  return $pdo;
+}
+
+function migrate(PDO $pdo): void {
+  $my = ($GLOBALS['DB_DRIVER'] ?? 'sqlite') === 'mysql';
+  $id = $my ? 'BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+  $now = $my ? 'DATETIME DEFAULT CURRENT_TIMESTAMP' : "TEXT DEFAULT (datetime('now'))";
+  $tables = [
+    "CREATE TABLE IF NOT EXISTS users (id $id, name VARCHAR(120) NOT NULL, email VARCHAR(190) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL, role VARCHAR(20) NOT NULL DEFAULT 'member', plan VARCHAR(20) NOT NULL DEFAULT 'free',
+      company VARCHAR(150) DEFAULT '', status VARCHAR(20) NOT NULL DEFAULT 'active', verified INTEGER NOT NULL DEFAULT 0,
+      verify_code VARCHAR(10) DEFAULT '', created_at $now)",
+    "CREATE TABLE IF NOT EXISTS tokens (id $id, user_id INTEGER NOT NULL, token_hash CHAR(64) NOT NULL,
+      type VARCHAR(20) NOT NULL DEFAULT 'session', expires_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS scans (id $id, user_id INTEGER NOT NULL, type VARCHAR(12) NOT NULL, subject TEXT,
+      verdict VARCHAR(10) NOT NULL, risk INTEGER NOT NULL, threat_type VARCHAR(150), explanation TEXT, recommendation TEXT,
+      meta TEXT, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS signatures (id $id, channel VARCHAR(10) NOT NULL, category VARCHAR(60) NOT NULL,
+      pattern TEXT NOT NULL, weight INTEGER NOT NULL DEFAULT 10, enabled INTEGER NOT NULL DEFAULT 1)",
+    "CREATE TABLE IF NOT EXISTS blocklist (id $id, pattern VARCHAR(255) NOT NULL, type VARCHAR(10) NOT NULL DEFAULT 'domain',
+      note VARCHAR(255) DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS brands (id $id, name VARCHAR(80) NOT NULL, official_domains TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS threat_intel (id $id, level VARCHAR(10) NOT NULL, title VARCHAR(200) NOT NULL,
+      descr TEXT NOT NULL, category VARCHAR(60) NOT NULL, region VARCHAR(4) DEFAULT 'NG', detail_json TEXT,
+      active INTEGER NOT NULL DEFAULT 1, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS notifications (id $id, user_id INTEGER, type VARCHAR(10) NOT NULL DEFAULT 'info',
+      title VARCHAR(180) NOT NULL, body TEXT, read_at TEXT, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS reports (id $id, user_id INTEGER NOT NULL, ref VARCHAR(20) NOT NULL, title VARCHAR(180),
+      risk_level VARCHAR(10), threat_count INTEGER DEFAULT 0, body_json TEXT, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS chat_messages (id $id, user_id INTEGER NOT NULL, session_id VARCHAR(30) DEFAULT '',
+      role VARCHAR(6) NOT NULL, content TEXT NOT NULL, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS breaches (id $id, name VARCHAR(150) NOT NULL, domain VARCHAR(150) DEFAULT '',
+      breach_date VARCHAR(12) DEFAULT '', data_types VARCHAR(255) DEFAULT '', records VARCHAR(20) DEFAULT '', verified INTEGER DEFAULT 1)",
+    "CREATE TABLE IF NOT EXISTS breach_emails (id $id, email_hash CHAR(64) NOT NULL, breach_id INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(60) PRIMARY KEY, v TEXT)",
+  ];
+  foreach ($tables as $sql) $pdo->exec($sql);
+  seed($pdo);
+}
+
+function seed(PDO $pdo): void {
+  if ((int)$pdo->query('SELECT COUNT(*) c FROM users')->fetch()['c'] > 0) return;
+  // super admin — CHANGE THIS PASSWORD after first login
+  $st = $pdo->prepare("INSERT INTO users(name,email,password_hash,role,plan,verified) VALUES(?,?,?,?,?,1)");
+  $st->execute(['Super Admin', 'admin@sentinel.ai', password_hash('Admin@1234', PASSWORD_BCRYPT), 'admin', 'enterprise']);
+
+  $sig = $pdo->prepare("INSERT INTO signatures(channel,category,pattern,weight) VALUES(?,?,?,?)");
+  $rules = [
+    ['sms','Bank Scam','/(bvn|acct|account (blocked|suspended)|debit|atm|card.*(block|expire)|kyc|upgrade)/i',26],
+    ['sms','Lottery Scam','/(congratulation|won|winner|promo|prize|lucky|draw)/i',24],
+    ['sms','Investment Scam','/(invest|profit|return|double your|forex|trading platform|roi)/i',24],
+    ['sms','Crypto Scam','/(bitcoin|crypto|usdt|wallet|airdrop|binance)/i',22],
+    ['sms','WhatsApp Scam','/(whatsapp|wa\.me|chat me|dm me)/i',16],
+    ['sms','Malicious Link','/(http|bit\.ly|tinyurl|cutt\.ly|click)/i',14],
+    ['sms','Urgency Pressure','/(urgent|now|today|immediately|last chance|24 ?h)/i',10],
+    ['email','False Urgency','/(urgent|immediately|within 24|within 48|act now|final notice|suspended)/i',16],
+    ['email','Credential Phish','/(verify your account|confirm your identity|update your (kyc|bvn|details)|re-?activate)/i',20],
+    ['email','Sensitive Data Request','/(bvn|nin|atm pin|card number|cvv|otp|one-?time password)/i',26],
+    ['email','Suspicious Link Push','/(click (here|the link)|http:\/\/|bit\.ly|tinyurl)/i',12],
+    ['email','Generic Greeting','/(dear customer|dear user|dear beneficiary|valued customer)/i',10],
+    ['email','Advance-Fee Scam','/(won|winner|lottery|inheritance|million|compensation|grant|fund release)/i',22],
+    ['email','Authority Impersonation','/(cbn|central bank|efcc|nnpc|federal government).{0,80}(fee|charge|payment|deposit)/i',24],
+    ['url','Phishing Keyword','/(login|verify|secure|account|update|confirm|wallet|airdrop|bonus|giveaway|promo)/i',14],
+  ];
+  foreach ($rules as $r) $sig->execute($r);
+
+  $pdo->prepare("INSERT INTO brands(name,official_domains) VALUES(?,?)")->execute(['Nigerian Banks & Fintech',
+    json_encode(['gtbank'=>'gtbank.com','zenith'=>'zenithbank.com','firstbank'=>'firstbanknigeria.com','uba'=>'ubagroup.com',
+    'accessbank'=>'accessbankplc.com','opay'=>'opayweb.com','palmpay'=>'palmpay.com','kuda'=>'kuda.com','moniepoint'=>'moniepoint.com',
+    'paystack'=>'paystack.com','flutterwave'=>'flutterwave.com','cbn'=>'cbn.gov.ng','nibss'=>'nibss-plc.com.ng'])]);
+
+  $bl = $pdo->prepare("INSERT INTO blocklist(pattern,type,note) VALUES(?,?,?)");
+  foreach ([['gtb-secure-login.tk','domain','Known phishing kit'],['cbn-upgrade.tk','domain','Fake CBN campaign'],
+            ['qr-pay-verify.xyz','domain','QRishing campaign'],['free-airtime-ng.top','domain','Malware dropper']] as $b) $bl->execute($b);
+
+  $ti = $pdo->prepare("INSERT INTO threat_intel(level,title,descr,category,detail_json) VALUES(?,?,?,?,?)");
+  foreach ([
+    ['danger','Active: Fake CBN “account upgrade” SMS wave','Mass SMS campaign impersonating the Central Bank of Nigeria directing victims to credential-harvesting pages. Over 12,000 reports this week.','Phishing'],
+    ['danger','WhatsApp hijack via fake voting links','Attackers send “vote for my child” links that capture WhatsApp verification codes and take over accounts.','Account Takeover'],
+    ['warn','Ponzi platform “AgroYield 400%” trending','Investment scam promising 400% agricultural returns spreading through Telegram and Facebook groups.','Investment Fraud'],
+    ['warn','Malicious “Loan App” APKs on 3rd-party stores','Predatory loan apps exfiltrating contacts and photos for blackmail.','Malware'],
+    ['info','New Android banking trojan variant detected','Anatsa family added overlay attacks targeting Nigerian mobile banking apps.','Malware'],
+  ] as $t) $ti->execute([$t[0],$t[1],$t[2],$t[3],null]);
+
+  $br = $pdo->prepare("INSERT INTO breaches(name,domain,breach_date,data_types,records) VALUES(?,?,?,?,?)");
+  foreach ([['Collection #1 Combo List','','2019-01','Email, Password','773M'],
+            ['NaijaLoaded Forum Leak','naijaloaded.com.ng','2021-06','Email, Username, IP','2.1M'],
+            ['Fintech Aggregator Breach','','2023-11','Email, Phone, Partial card','5.4M']] as $b) $br->execute($b);
+
+  $pdo->prepare("INSERT INTO settings(k,v) VALUES(?,?)")->execute(['dev_mode','1']);
+}
+
+/* ---------------- helpers ---------------- */
+function respond(mixed $data, int $code = 200): never {
+  http_response_code($code);
+  header('Content-Type: application/json');
+  echo json_encode($data);
+  exit;
+}
+function input(): array {
+  $raw = file_get_contents('php://input');
+  $j = json_decode($raw ?: '[]', true);
+  return is_array($j) ? $j : [];
+}
+function setting(string $k, ?string $default = null): ?string {
+  $st = db()->prepare('SELECT v FROM settings WHERE k=?'); $st->execute([$k]);
+  $r = $st->fetch(); return $r ? $r['v'] : $default;
+}
+function set_setting(string $k, string $v): void {
+  $sql = ($GLOBALS['DB_DRIVER'] === 'mysql')
+    ? 'INSERT INTO settings(k,v) VALUES(?,?) ON DUPLICATE KEY UPDATE v=VALUES(v)'
+    : 'INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v';
+  db()->prepare($sql)->execute([$k, $v]);
+}
+function bearer(): ?string {
+  $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+  return preg_match('/Bearer\s+(\S+)/', $h, $m) ? $m[1] : null;
+}
+function auth_user(): ?array {
+  $t = bearer(); if (!$t) return null;
+  $st = db()->prepare("SELECT u.* FROM tokens tk JOIN users u ON u.id=tk.user_id
+    WHERE tk.token_hash=? AND tk.type='session' AND tk.expires_at>?");
+  $st->execute([hash('sha256', $t), time()]);
+  $u = $st->fetch();
+  return ($u && $u['status'] === 'active') ? $u : null;
+}
+function require_auth(): array {
+  $u = auth_user(); if (!$u) respond(['error' => 'Unauthorized'], 401);
+  return $u;
+}
+function require_admin(): array {
+  $u = require_auth(); if ($u['role'] !== 'admin') respond(['error' => 'Forbidden'], 403);
+  return $u;
+}
+function issue_token(int $uid): string {
+  $t = bin2hex(random_bytes(32));
+  db()->prepare("INSERT INTO tokens(user_id,token_hash,type,expires_at) VALUES(?,?,'session',?)")
+     ->execute([$uid, hash('sha256', $t), time() + CFG['token_ttl']]);
+  return $t;
+}
+function public_user(array $u): array {
+  return ['id'=>(int)$u['id'],'name'=>$u['name'],'email'=>$u['email'],'role'=>$u['role'],
+          'plan'=>$u['plan'],'company'=>$u['company'],'verified'=>(int)$u['verified'],'status'=>$u['status']];
+}
+function notify(?int $uid, string $type, string $title, string $body): void {
+  db()->prepare('INSERT INTO notifications(user_id,type,title,body) VALUES(?,?,?,?)')->execute([$uid,$type,$title,$body]);
+}
+function save_scan(int $uid, string $type, string $subject, array $r): int {
+  db()->prepare('INSERT INTO scans(user_id,type,subject,verdict,risk,threat_type,explanation,recommendation,meta) VALUES(?,?,?,?,?,?,?,?,?)')
+    ->execute([$uid,$type,mb_substr($subject,0,500),$r['verdict'],$r['risk'],$r['threatType'],$r['explanation'],$r['recommendation'],json_encode($r['meta'] ?? new stdClass())]);
+  $id = (int)db()->lastInsertId();
+  if ($r['verdict'] === 'danger')
+    notify($uid, 'danger', 'High-risk ' . $type . ' detected', mb_substr($subject, 0, 120) . ' — ' . $r['threatType']);
+  return $id;
+}
