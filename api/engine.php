@@ -67,7 +67,7 @@ final class Engine {
         CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_USERAGENT=>'SentinelAI-Scanner/1.0']);
       curl_exec($ch);
       $info = curl_getinfo($ch);
-      $sslOk = curl_errno($ch) !== CURLE_SSL_CACERT && curl_errno($ch) !== CURLE_PEER_FAILED_VERIFICATION;
+      $sslOk = !in_array(curl_errno($ch), [51, 58, 60]); // TLS peer/cert verification failures
       $meta['http_code'] = $info['http_code']; $meta['redirects'] = $info['redirect_count']; $meta['final_url'] = $info['url'];
       if (!$sslOk) { $score += 20; $signals[] = 'Invalid or untrusted TLS certificate'; }
       if (($info['redirect_count'] ?? 0) >= 3) { $score += 12; $signals[] = "Long redirect chain ({$info['redirect_count']} hops)"; }
