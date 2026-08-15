@@ -76,7 +76,7 @@ const AuthViews = {
   verify() {
     return AuthViews._wrap(`
       <h1 class="auth-title">Verify your email</h1>
-      <p class="auth-sub">We sent a 6-digit code to <b>${esc(State.pendingEmail || 'your email')}</b>.<br>Enter it below to activate your account.</p>
+      <p class="auth-sub">We sent a 6-digit code to <b>${esc(State.pendingEmail || 'your email')}</b>.<br>Enter it below to activate your account.${State.devCode ? '<br><span class="tag" style="margin-top:6px;display:inline-block">DEV MODE — your code: ' + State.devCode + '</span>' : ''}</p>
       <form id="verify-form">
         <div class="otp-row">
           ${Array.from({ length: 6 }, (_, i) => `<input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-otp="${i}">`).join('')}
@@ -126,12 +126,13 @@ const AuthViews = {
         const f = new FormData(e.target);
         const btn = document.getElementById('login-btn');
         btn.disabled = true; btn.textContent = 'Signing in…';
-        const res = await API.login(f.get('email'), f.get('password'), f.get('remember'));
+        try {
+          const res = await API.login(f.get('email'), f.get('password'));
+          App.setSession(res.user, res.token);
+          toast('Welcome back, ' + res.user.name.split(' ')[0] + '!', 'ok');
+          location.hash = res.user.role === 'admin' ? '#/admin' : '#/dashboard';
+        } catch (e) { toast(e.message, 'err'); }
         btn.disabled = false; btn.textContent = 'Sign In';
-        if (res.error) return toast(res.error, 'err');
-        App.setSession(res.user, res.token);
-        toast('Welcome back, ' + res.user.name.split(' ')[0] + '!', 'ok');
-        location.hash = '#/dashboard';
       });
     }
 
@@ -149,13 +150,15 @@ const AuthViews = {
         const f = new FormData(e.target);
         const btn = document.getElementById('register-btn');
         btn.disabled = true; btn.textContent = 'Creating account…';
-        const res = await API.register(f.get('name'), f.get('email'), f.get('password'));
+        try {
+          const res = await API.register(f.get('name'), f.get('email'), f.get('password'));
+          App.setSession(res.user, res.token);
+          State.pendingEmail = f.get('email');
+          if (res.dev_verify_code) State.devCode = res.dev_verify_code;
+          toast('Account created! Enter the verification code.', 'ok');
+          location.hash = '#/verify';
+        } catch (e) { toast(e.message, 'err'); }
         btn.disabled = false; btn.textContent = 'Create Account';
-        if (res.error) return toast(res.error, 'err');
-        State.pendingEmail = f.get('email');
-        State.pendingSession = res;
-        toast('Account created! Check your inbox for the code.', 'ok');
-        location.hash = '#/verify';
       });
     }
 
@@ -192,13 +195,13 @@ const AuthViews = {
         if (code.length < 6) return toast('Please enter the full 6-digit code.', 'err');
         const btn = document.getElementById('verify-btn');
         btn.disabled = true; btn.textContent = 'Verifying…';
-        await API.verifyEmail(code);
-        if (State.pendingSession) {
-          App.setSession(State.pendingSession.user, State.pendingSession.token);
-          State.pendingSession = null;
-        }
-        toast('Email verified. Welcome to Sentinel AI! 🛡️', 'ok');
-        location.hash = '#/dashboard';
+        try {
+          await API.verifyEmail(code);
+          if (State.user) { State.user.verified = 1; localStorage.setItem('sentinel_user', JSON.stringify(State.user)); }
+          toast('Email verified. Welcome to Sentinel AI! 🛡️', 'ok');
+          location.hash = '#/dashboard';
+        } catch (e) { toast(e.message, 'err'); }
+        btn.disabled = false; btn.textContent = 'Verify Email';
       });
     }
 
