@@ -122,6 +122,55 @@ const MiscViews = {
     });
   },
 
+  /* ---------- CHANGE PASSWORD MODAL ---------- */
+  openChangePassword() {
+    const scrim = document.createElement('div');
+    scrim.className = 'modal-scrim';
+    scrim.innerHTML = `<div class="modal" style="max-width:420px">
+      <div class="modal-head">
+        <div class="list-icon blue" style="flex:none">${Icons.key}</div>
+        <h3>Change Password</h3>
+        <button class="modal-close">${Icons.x}</button>
+      </div>
+      <div class="modal-body">
+        <div class="field"><label>Current password</label>
+          <input class="input" type="password" id="cp-current" autocomplete="current-password"></div>
+        <div class="field"><label>New password</label>
+          <input class="input" type="password" id="cp-new" minlength="8" autocomplete="new-password">
+          <div class="meter-track" style="margin-top:8px"><div class="meter-fill" id="cp-meter" style="width:0%"></div></div>
+          <div class="hint" id="cp-hint" style="margin-top:5px"></div></div>
+        <div class="field"><label>Confirm new password</label>
+          <input class="input" type="password" id="cp-confirm"></div>
+        <button class="btn btn-primary btn-block" id="cp-save">Update Password</button>
+      </div>
+    </div>`;
+    const close = () => scrim.remove();
+    scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
+    scrim.querySelector('.modal-close').addEventListener('click', close);
+    document.body.appendChild(scrim);
+    const newInput = scrim.querySelector('#cp-new');
+    newInput.addEventListener('input', () => {
+      const r = PasswordLocal.check(newInput.value);
+      const m = scrim.querySelector('#cp-meter');
+      m.style.width = r.score + '%';
+      m.style.background = r.score >= 60 ? 'linear-gradient(90deg,var(--green),var(--blue))' : r.score >= 30 ? 'var(--amber)' : 'var(--red)';
+      scrim.querySelector('#cp-hint').textContent = newInput.value ? `${r.label} · crack time ≈ ${r.crackTime}` : '';
+    });
+    scrim.querySelector('#cp-save').addEventListener('click', async () => {
+      const cur = scrim.querySelector('#cp-current').value;
+      const nw = newInput.value, cf = scrim.querySelector('#cp-confirm').value;
+      if (nw.length < 8) return toast('New password must be at least 8 characters.', 'err');
+      if (nw !== cf) return toast('Passwords do not match.', 'err');
+      const btn = scrim.querySelector('#cp-save');
+      btn.disabled = true; btn.textContent = 'Updating…';
+      try {
+        await API.changePassword(cur, nw);
+        toast('Password updated. Other sessions signed out. 🛡️', 'ok');
+        close();
+      } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = 'Update Password'; }
+    });
+  },
+
   /* ---------- MORE (mobile hub) ---------- */
   more() {
     const u = State.user || { name: 'Guest User', email: 'guest@sentinel.ai', plan: 'Free' };
