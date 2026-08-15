@@ -189,8 +189,16 @@ function set_setting(string $k, string $v): void {
   db()->prepare($sql)->execute([$k, $v]);
 }
 function bearer(): ?string {
-  $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-  return preg_match('/Bearer\s+(\S+)/', $h, $m) ? $m[1] : null;
+  // Apache configurations vary in where (or whether) they expose the
+  // Authorization header — check every known location.
+  $h = $_SERVER['HTTP_AUTHORIZATION']
+    ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+    ?? '';
+  if (!$h && function_exists('apache_request_headers')) {
+    foreach (apache_request_headers() as $k => $v)
+      if (strcasecmp($k, 'Authorization') === 0) { $h = $v; break; }
+  }
+  return preg_match('/Bearer\s+(\S+)/i', $h, $m) ? $m[1] : null;
 }
 function auth_user(): ?array {
   $t = bearer(); if (!$t) return null;

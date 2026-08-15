@@ -1,7 +1,14 @@
 # Sentinel AI — Apache/XAMPP routing
 RewriteEngine On
+
+# CRITICAL: Apache strips the Authorization header by default under
+# CGI/FastCGI — forward it to PHP so bearer tokens work.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # API front controller
 RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+
 # Everything else: serve file if it exists, otherwise the SPA
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
