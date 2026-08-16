@@ -180,6 +180,8 @@ switch (true) {
     $sid = preg_replace('/[^a-zA-Z0-9_-]/', '', $in['session_id'] ?? '');
     db()->prepare("INSERT INTO chat_messages(user_id,session_id,role,content) VALUES(?,?,'user',?)")->execute([$u['id'], $sid, $msg]);
     $key = setting('gemini_api_key', '');
+    $langNames = ['ha' => 'Hausa', 'ig' => 'Igbo', 'yo' => 'Yoruba', 'pcm' => 'Nigerian Pidgin'];
+    $langInstr = isset($langNames[$in['lang'] ?? '']) ? ' Reply in ' . $langNames[$in['lang']] . ' language.' : '';
     $reply = null;
     if ($key) {
       $hist = array_map(fn($h) => ['role' => ($h['role'] ?? '') === 'ai' ? 'model' : 'user', 'parts' => [['text' => $h['text'] ?? '']]],
@@ -189,7 +191,7 @@ switch (true) {
       curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
         CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
         CURLOPT_POSTFIELDS=>json_encode([
-          'system_instruction'=>['parts'=>[['text'=>"You are Sentinel AI, an expert cybersecurity assistant protecting Nigeria's digital economy. Be concise and practical. Mention reporting channels (bank fraud line, ngCERT cert.gov.ng, EFCC) when users may be fraud victims. Never help with cybercrime."]]],
+          'system_instruction'=>['parts'=>[['text'=>"You are Sentinel AI, an expert cybersecurity assistant protecting Nigeria's digital economy. Be concise and practical. Mention reporting channels (bank fraud line, ngCERT cert.gov.ng, EFCC) when users may be fraud victims. Never help with cybercrime." . $langInstr]]],
           'contents'=>$hist, 'generationConfig'=>['temperature'=>0.4,'maxOutputTokens'=>800]])]);
       $res = curl_exec($ch); curl_close($ch);
       $j = json_decode($res ?: '', true);
@@ -224,6 +226,37 @@ switch (true) {
     $cats = db()->query("SELECT threat_type l, COUNT(*) v FROM scans WHERE user_id=$uid AND verdict!='safe' AND threat_type!='None Detected' GROUP BY threat_type ORDER BY v DESC LIMIT 5")->fetchAll();
     respond(['score'=>$score,'threats'=>(int)$danger,'blocked'=>(int)$danger,'warnings'=>(int)$warn,'total_scans'=>(int)$tot,
       'threatsPerDay'=>$threatsPerDay,'scansPerDay'=>$scansPerDay,'categories'=>$cats,'recent'=>$recent]);
+  }
+
+  case $route === 'threat-map' && $method === 'GET': {
+    require_auth();
+    // real platform-wide aggregation by state (all users, anonymized counts)
+    $rows = db()->query("SELECT state,
+        COUNT(*) scans,
+        SUM(CASE WHEN verdict='danger' THEN 1 ELSE 0 END) blocked,
+        SUM(CASE WHEN verdict='warn' THEN 1 ELSE 0 END) warns
+      FROM scans WHERE state != '' GROUP BY state")->fetchAll();
+    $top = db()->query("SELECT state, threat_type FROM scans
+      WHERE state != '' AND verdict != 'safe' AND threat_type NOT IN ('', 'None Detected')")->fetchAll();
+    $topByState = [];
+    foreach ($top as $t) {
+      $first = trim(explode('+', $t['threat_type'])[0]);
+      $topByState[$t['state']][$first] = ($topByState[$t['state']][$first] ?? 0) + 1;
+    }
+    $out = [];
+    $maxActivity = 1;
+    foreach ($rows as $r) {
+      $activity = (int)$r['blocked'] * 3 + (int)$r['warns'] * 2 + (int)$r['scans'];
+      $maxActivity = max($maxActivity, $activity);
+      $tt = $topByState[$r['state']] ?? [];
+      arsort($tt);
+      $out[$r['state']] = ['scans' => (int)$r['scans'], 'blocked' => (int)$r['blocked'],
+        'warns' => (int)$r['warns'], 'activity' => $activity, 'top' => $tt ? array_key_first($tt) : '—'];
+    }
+    foreach ($out as &$o) $o['idx'] = (int)round($o['activity'] / $maxActivity * 100);
+    $tot = db()->query("SELECT COUNT(*) c, SUM(CASE WHEN verdict='danger' THEN 1 ELSE 0 END) d FROM scans WHERE substr(created_at,1,10)=" . db()->quote(date('Y-m-d')))->fetch();
+    respond(['states' => $out, 'total_today' => (int)($tot['c'] ?? 0), 'blocked_today' => (int)($tot['d'] ?? 0),
+             'covered' => count($out), 'geo_note' => count($out) ? null : 'No geo-locatable scans yet — scans from localhost/LAN cannot be located. Data appears once real users scan from Nigerian networks.']);
   }
 
   case $route === 'threat-intel' && $method === 'GET': {
@@ -566,19 +599,20 @@ switch (true) {
 
   case $route === 'admin/settings' && $method === 'GET': {
     require_admin();
-    $g = setting('gemini_api_key', ''); $x = setting('grok_api_key', '');
+    $g = setting('gemini_api_key', ''); $x = setting('groq_api_key', '') ?: setting('grok_api_key', '');
+    $prov = setting('llm_provider', 'gemini'); if ($prov === 'grok') $prov = 'groq';
     respond(['dev_mode' => setting('dev_mode', '0'),
-             'llm_provider' => setting('llm_provider', 'gemini'),
+             'llm_provider' => $prov,
              'gemini_key_set' => $g !== '', 'gemini_key_masked' => $g ? substr($g, 0, 6) . '••••••••' : '',
-             'grok_key_set' => $x !== '', 'grok_key_masked' => $x ? substr($x, 0, 6) . '••••••••' : '',
-             'grok_model' => setting('grok_model', 'grok-2-latest')]);
+             'groq_key_set' => $x !== '', 'groq_key_masked' => $x ? substr($x, 0, 6) . '••••••••' : '',
+             'groq_model' => setting('groq_model', 'llama-3.3-70b-versatile')]);
   }
   case $route === 'admin/settings' && $method === 'POST': {
     require_admin();
     if (isset($in['gemini_api_key'])) set_setting('gemini_api_key', trim($in['gemini_api_key']));
-    if (isset($in['grok_api_key'])) set_setting('grok_api_key', trim($in['grok_api_key']));
-    if (isset($in['llm_provider']) && in_array($in['llm_provider'], ['gemini','grok'])) set_setting('llm_provider', $in['llm_provider']);
-    if (isset($in['grok_model'])) set_setting('grok_model', trim($in['grok_model']));
+    if (isset($in['groq_api_key'])) set_setting('groq_api_key', trim($in['groq_api_key']));
+    if (isset($in['llm_provider']) && in_array($in['llm_provider'], ['gemini','groq'])) set_setting('llm_provider', $in['llm_provider']);
+    if (isset($in['groq_model'])) set_setting('groq_model', trim($in['groq_model']));
     if (isset($in['dev_mode'])) set_setting('dev_mode', $in['dev_mode'] ? '1' : '0');
     respond(['ok' => true]);
   }

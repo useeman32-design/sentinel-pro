@@ -60,7 +60,7 @@ const API = {
   passwordCheck: (password) => Promise.resolve(PasswordLocal.check(password)),
 
   /* ---------- DATA ---------- */
-  chat: (message, history, session_id) => API.request('/chat', { method: 'POST', body: { message, history, session_id } }),
+  chat: (message, history, session_id) => API.request('/chat', { method: 'POST', body: { message, history, session_id, lang: (State.settings && State.settings.lang) || 'en' } }),
   getDashboard: () => API.request('/dashboard'),
   getThreatIntel: () => API.request('/threat-intel'),
   getNotifications: () => API.request('/notifications'),

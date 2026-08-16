@@ -103,7 +103,9 @@ const MiscViews = {
     }));
     document.getElementById('set-lang').addEventListener('change', e => {
       State.settings.lang = e.target.value; App.saveSettings();
-      toast('Language preference saved. Full translations arrive with the backend.', 'ok');
+      I18N.setLang(e.target.value);
+      App.renderChrome(); App.renderPage();
+      toast({ en: 'Language updated.', ha: 'An canza harshe.', ig: 'Agbanweela asụsụ.', yo: 'Èdè ti yípadà.', pcm: 'Language don change.' }[e.target.value] || 'Language updated.', 'ok');
     });
     document.querySelectorAll('[data-set]').forEach(t => t.addEventListener('change', () => {
       State.settings[t.dataset.set] = t.checked; App.saveSettings();

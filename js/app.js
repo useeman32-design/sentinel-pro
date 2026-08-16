@@ -97,6 +97,7 @@ const App = {
 
   /* ---------- shell ---------- */
   renderChrome() {
+    I18N.setLang(State.settings.lang || 'en');
     const r = App.currentRoute;
     const u = State.user || { name: 'Guest User', plan: 'Free' };
     const initials = u.name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
@@ -160,6 +161,7 @@ const App = {
     document.getElementById('bn-ai').addEventListener('click', () => { location.hash = '#/assistant'; });
     sheet.addEventListener('click', e => { if (e.target.closest('a')) closeAll(); });
     sidebar.addEventListener('click', e => { if (e.target.closest('a')) closeAll(); });
+    I18N.apply();
     document.getElementById('theme-quick').addEventListener('click', () => {
       State.settings.theme = State.settings.theme === 'light' ? 'dark' : 'light';
       App.saveSettings(); App.applyTheme(); App.renderChrome(); App.renderPage();
@@ -177,6 +179,9 @@ const App = {
     page.innerHTML = ROUTES[r].view();
     window.scrollTo({ top: 0 });
     ROUTES[r].bind && ROUTES[r].bind();
+    I18N.apply();
+    // async views translate again shortly after data lands
+    clearTimeout(App._i18nT); App._i18nT = setTimeout(() => I18N.apply(), 700);
   },
 
   render() {
@@ -190,8 +195,10 @@ const App = {
 
     const app = document.getElementById('app');
     if (isAuthPage) {
+      I18N.setLang(State.settings.lang || 'en');
       app.innerHTML = def.view();
       def.bind && def.bind();
+      I18N.apply();
     } else {
       App.renderChrome();
       App.renderPage();

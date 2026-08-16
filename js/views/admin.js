@@ -236,14 +236,14 @@ const AdminView = {
         <p class="hint" style="margin-bottom:12px">Keys are stored server-side, never exposed to users. The LLM gives a second opinion on email/SMS scans and powers the Assistant. Rules always run first; the higher risk wins.</p>
         <div class="set-row"><div class="set-body"><div class="set-title">Primary provider</div><div class="set-sub">Falls back to the other automatically if the primary fails</div></div>
           <div class="tabs" style="flex:none;padding:4px">
-            <button class="tab ${s.llm_provider !== 'grok' ? 'active' : ''}" data-llm="gemini">Gemini</button>
-            <button class="tab ${s.llm_provider === 'grok' ? 'active' : ''}" data-llm="grok">Grok</button>
+            <button class="tab ${s.llm_provider !== 'groq' ? 'active' : ''}" data-llm="gemini">Gemini</button>
+            <button class="tab ${s.llm_provider === 'groq' ? 'active' : ''}" data-llm="groq">Groq</button>
           </div></div>
         <div class="grid grid-2" style="gap:12px;margin-top:12px">
           <div><label class="hint" style="display:block;margin-bottom:5px">Gemini API key ${s.gemini_key_set ? '· <b style="color:var(--green)">set</b> (' + s.gemini_key_masked + ')' : ''}</label>
             <input class="input" type="password" id="ad-gemini" placeholder="AIza…"></div>
-          <div><label class="hint" style="display:block;margin-bottom:5px">Grok (x.ai) API key ${s.grok_key_set ? '· <b style="color:var(--green)">set</b> (' + s.grok_key_masked + ')' : ''}</label>
-            <input class="input" type="password" id="ad-grok" placeholder="xai-…"></div>
+          <div><label class="hint" style="display:block;margin-bottom:5px">Groq API key ${s.groq_key_set ? '· <b style="color:var(--green)">set</b> (' + s.groq_key_masked + ')' : ''}</label>
+            <input class="input" type="password" id="ad-groq" placeholder="gsk_… (console.groq.com — free tier)"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" style="width:auto" id="ad-save-key">Save Keys</button>
@@ -274,11 +274,11 @@ const AdminView = {
     }));
     document.getElementById('ad-save-key').addEventListener('click', async () => {
       const g = document.getElementById('ad-gemini').value.trim();
-      const x = document.getElementById('ad-grok').value.trim();
+      const x = document.getElementById('ad-groq').value.trim();
       if (!g && !x) return toast('Paste at least one key.', 'err');
       const payload = {};
       if (g) payload.gemini_api_key = g;
-      if (x) payload.grok_api_key = x;
+      if (x) payload.groq_api_key = x;
       await API.admin.saveSettings(payload);
       toast('AI keys saved — scanners now get LLM second opinions. 🔥', 'ok'); AdminView.loadTab();
     });

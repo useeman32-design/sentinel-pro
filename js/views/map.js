@@ -11,49 +11,23 @@ const ThreatMap = {
   selected: null,
   geo: null,
 
-  /* Threat activity per state (0-100) — placeholder analytics until the
-     PHP backend aggregates real scan data (GET /api/threat-map). */
-  DATA: {
-    'Lagos':       { idx: 96, scans: 4210, blocked: 214, top: 'Phishing' },
-    'FCT Abuja':   { idx: 84, scans: 2980, blocked: 158, top: 'Investment Fraud' },
-    'Kano':        { idx: 71, scans: 1650, blocked: 96,  top: 'SMS Scams' },
-    'Rivers':      { idx: 66, scans: 1390, blocked: 74,  top: 'Phishing' },
-    'Oyo':         { idx: 58, scans: 1120, blocked: 52,  top: 'Account Takeover' },
-    'Enugu':       { idx: 52, scans: 960,  blocked: 43,  top: 'Romance Scams' },
-    'Kaduna':      { idx: 49, scans: 890,  blocked: 38,  top: 'SMS Scams' },
-    'Delta':       { idx: 45, scans: 760,  blocked: 31,  top: 'Phishing' },
-    'Edo':         { idx: 43, scans: 720,  blocked: 29,  top: 'Romance Scams' },
-    'Anambra':     { idx: 41, scans: 690,  blocked: 27,  top: 'Investment Fraud' },
-    'Borno':       { idx: 38, scans: 540,  blocked: 24,  top: 'SIM Swap' },
-    'Ogun':        { idx: 36, scans: 610,  blocked: 22,  top: 'Phishing' },
-    'Akwa Ibom':   { idx: 33, scans: 480,  blocked: 19,  top: 'SMS Scams' },
-    'Abia':        { idx: 31, scans: 450,  blocked: 17,  top: 'Phishing' },
-    'Imo':         { idx: 30, scans: 430,  blocked: 16,  top: 'Romance Scams' },
-    'Plateau':     { idx: 28, scans: 390,  blocked: 14,  top: 'SMS Scams' },
-    'Katsina':     { idx: 26, scans: 350,  blocked: 13,  top: 'SIM Swap' },
-    'Kwara':       { idx: 25, scans: 340,  blocked: 12,  top: 'Phishing' },
-    'Osun':        { idx: 24, scans: 320,  blocked: 11,  top: 'Account Takeover' },
-    'Ondo':        { idx: 23, scans: 300,  blocked: 11,  top: 'Phishing' },
-    'Bauchi':      { idx: 21, scans: 270,  blocked: 9,   top: 'SMS Scams' },
-    'Cross River': { idx: 20, scans: 260,  blocked: 9,   top: 'Romance Scams' },
-    'Sokoto':      { idx: 19, scans: 240,  blocked: 8,   top: 'SIM Swap' },
-    'Benue':       { idx: 18, scans: 230,  blocked: 8,   top: 'SMS Scams' },
-    'Niger':       { idx: 17, scans: 210,  blocked: 7,   top: 'Phishing' },
-    'Adamawa':     { idx: 16, scans: 200,  blocked: 7,   top: 'SMS Scams' },
-    'Bayelsa':     { idx: 15, scans: 190,  blocked: 6,   top: 'Phishing' },
-    'Nasarawa':    { idx: 14, scans: 180,  blocked: 6,   top: 'Investment Fraud' },
-    'Kogi':        { idx: 14, scans: 175,  blocked: 5,   top: 'SMS Scams' },
-    'Ekiti':       { idx: 13, scans: 160,  blocked: 5,   top: 'Phishing' },
-    'Kebbi':       { idx: 12, scans: 150,  blocked: 4,   top: 'SIM Swap' },
-    'Gombe':       { idx: 11, scans: 140,  blocked: 4,   top: 'SMS Scams' },
-    'Ebonyi':      { idx: 10, scans: 130,  blocked: 3,   top: 'Phishing' },
-    'Taraba':      { idx: 9,  scans: 110,  blocked: 3,   top: 'SMS Scams' },
-    'Jigawa':      { idx: 8,  scans: 100,  blocked: 2,   top: 'SIM Swap' },
-    'Zamfara':     { idx: 8,  scans: 95,   blocked: 2,   top: 'SMS Scams' },
-    'Yobe':        { idx: 7,  scans: 85,   blocked: 2,   top: 'SIM Swap' },
+  /* Live per-state data from /api/threat-map (geo-IP aggregated).
+     Empty until real users scan from Nigerian networks. */
+  DATA: {},
+  totals: { total_today: 0, blocked_today: 0, covered: 0, geo_note: null },
+
+  async loadLive() {
+    try {
+      const d = await API.request('/threat-map');
+      ThreatMap.DATA = {};
+      Object.entries(d.states || {}).forEach(([name, s]) => {
+        ThreatMap.DATA[name] = { idx: s.idx, scans: s.scans, blocked: s.blocked, top: s.top };
+      });
+      ThreatMap.totals = { total_today: d.total_today, blocked_today: d.blocked_today, covered: d.covered, geo_note: d.geo_note };
+    } catch (e) { ThreatMap.totals.geo_note = 'Could not load live map data.'; }
   },
 
-  stateData(name) { return ThreatMap.DATA[name] || { idx: 5, scans: 50, blocked: 1, top: 'Phishing' }; },
+  stateData(name) { return ThreatMap.DATA[name] || { idx: 0, scans: 0, blocked: 0, top: '—' }; },
 
   /* interpolate along Sentinel gradient: deep navy -> blue -> green */
   color(idx) {
@@ -87,27 +61,42 @@ const ThreatMap = {
 
   panelDefault() {
     const top = Object.entries(ThreatMap.DATA).sort((a, b) => b[1].idx - a[1].idx).slice(0, 5);
+    const T = ThreatMap.totals;
     return `<div class="tmap-panel-inner">
-      <div class="tmap-hint">${Icons.info}<span>Tap any state to see its threat profile.</span></div>
-      <div class="nav-group" style="padding:12px 0 6px">Top Hotspots</div>
+      <div class="tmap-hint">${Icons.info}<span>Tap any state to see its live threat profile.</span></div>
+      ${top.length ? `<div class="nav-group" style="padding:12px 0 6px">Top Hotspots (live)</div>
       ${top.map(([name, d], i) => `
         <div class="tmap-top-row" data-state="${esc(name)}">
           <span class="tmap-rank">${i + 1}</span>
           <span class="tmap-top-name">${esc(name)}</span>
           <div class="tmap-mini-track"><div class="tmap-mini-fill" style="width:${d.idx}%"></div></div>
           <b>${d.idx}</b>
-        </div>`).join('')}
+        </div>`).join('')}`
+      : `<div class="hint" style="padding:14px 4px;line-height:1.6">${esc(T.geo_note || 'No geo-located scan data yet.')}</div>`}
       <div class="ng-stats" style="margin-top:16px">
-        <div class="ng-stat"><div class="n" style="color:var(--green)">675</div><div class="l">Blocked Today</div></div>
-        <div class="ng-stat"><div class="n" style="color:var(--blue)">37</div><div class="l">States Covered</div></div>
+        <div class="ng-stat"><div class="n" style="color:var(--green)">${T.blocked_today}</div><div class="l">Blocked Today</div></div>
+        <div class="ng-stat"><div class="n" style="color:var(--blue)">${T.total_today}</div><div class="l">Scans Today</div></div>
+        <div class="ng-stat"><div class="n" style="color:var(--amber)">${T.covered}</div><div class="l">States Active</div></div>
       </div>
     </div>`;
   },
 
   panelState(name) {
     const d = ThreatMap.stateData(name);
-    const peak = Math.max(...Object.values(ThreatMap.DATA).map(x => x.idx));
-    const avg = Math.round(Object.values(ThreatMap.DATA).reduce((a, x) => a + x.idx, 0) / Object.keys(ThreatMap.DATA).length);
+    const vals = Object.values(ThreatMap.DATA);
+    const peak = vals.length ? Math.max(...vals.map(x => x.idx)) : 1;
+    const avg = vals.length ? Math.round(vals.reduce((a, x) => a + x.idx, 0) / vals.length) : 0;
+    if (!ThreatMap.DATA[name]) {
+      return `<div class="tmap-panel-inner">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="list-icon green" style="flex:none">${Icons.radar}</div>
+          <div style="flex:1;min-width:0"><div style="font-family:var(--font-display);font-weight:700;font-size:15px">${esc(name)}</div>
+            <div class="hint">No scan activity recorded yet</div></div>
+          <button class="modal-close" id="tmap-clear" title="Clear selection">${Icons.x}</button>
+        </div>
+        <p class="hint" style="margin-top:12px;line-height:1.6">This state has no geo-located scans yet. As users in ${esc(name)} run scans, live threat statistics will appear here.</p>
+      </div>`;
+    }
     return `<div class="tmap-panel-inner">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="list-icon ${d.idx >= 60 ? 'red' : d.idx >= 30 ? 'amber' : 'green'}" style="flex:none">${Icons.radar}</div>
@@ -119,7 +108,7 @@ const ThreatMap = {
       </div>
       <div class="grid grid-2" style="gap:8px;margin-top:14px">
         <div class="tmap-stat"><div class="ts-n" style="color:${ThreatMap.color(d.idx)}">${d.idx}</div><div class="ts-l">Activity Index</div></div>
-        <div class="tmap-stat"><div class="ts-n">${d.blocked}</div><div class="ts-l">Blocked (24h)</div></div>
+        <div class="tmap-stat"><div class="ts-n">${d.blocked}</div><div class="ts-l">Threats Found</div></div>
         <div class="tmap-stat"><div class="ts-n">${d.scans.toLocaleString()}</div><div class="ts-l">Total Scans</div></div>
         <div class="tmap-stat"><div class="ts-n" style="font-size:12px;line-height:1.3;padding-top:4px">${esc(d.top)}</div><div class="ts-l">Top Threat</div></div>
       </div>
@@ -136,6 +125,9 @@ const ThreatMap = {
   async init() {
     const el = document.getElementById('ng-map');
     if (!el || typeof L === 'undefined') return;
+    await ThreatMap.loadLive();
+    const panel0 = document.getElementById('tmap-panel');
+    if (panel0) panel0.innerHTML = ThreatMap.panelDefault();
     if (!ThreatMap.geo) {
       try {
         const res = await fetch('data/nigeria-states.geojson');

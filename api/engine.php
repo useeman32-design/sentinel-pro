@@ -262,14 +262,15 @@ final class Engine {
   /* ---------------- LLM second opinion (Gemini / Grok) ---------------- */
   static function llmSecondOpinion(string $kind, string $content, array $base): array {
     $provider = setting('llm_provider', 'gemini');
+    if ($provider === 'grok') $provider = 'groq'; // legacy value
     $prompt = "You are a cybersecurity analyst for Nigerian users. Analyze this {$kind} for fraud/phishing/social engineering.\n"
       . "Rule-based pre-scan risk: {$base['risk']}/100 ({$base['verdict']}).\n"
       . "CONTENT:\n---\n" . mb_substr($content, 0, 4000) . "\n---\n"
       . "Respond ONLY with compact JSON: {\"risk\":0-100,\"verdict\":\"safe|warn|danger\",\"threat_type\":\"...\",\"explanation\":\"1-3 sentences, plain language\",\"recommendation\":\"1-2 sentences\"}";
     $reply = null; $used = null;
-    $try = $provider === 'grok' ? ['grok','gemini'] : ['gemini','grok'];
+    $try = $provider === 'groq' ? ['groq','gemini'] : ['gemini','groq'];
     foreach ($try as $p) {
-      $reply = $p === 'gemini' ? self::callGemini($prompt) : self::callGrok($prompt);
+      $reply = $p === 'gemini' ? self::callGemini($prompt) : self::callGroq($prompt);
       if ($reply) { $used = $p; break; }
     }
     if (!$reply) return $base;
@@ -304,12 +305,13 @@ final class Engine {
     return $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
   }
 
-  static function callGrok(string $prompt): ?string {
-    $key = setting('grok_api_key', ''); if (!$key) return null;
-    $ch = curl_init('https://api.x.ai/v1/chat/completions');
+  static function callGroq(string $prompt): ?string {
+    $key = setting('groq_api_key', '') ?: setting('grok_api_key', ''); // accept legacy key slot
+    if (!$key) return null;
+    $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
     curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>20,
       CURLOPT_HTTPHEADER=>['Content-Type: application/json','Authorization: Bearer ' . $key],
-      CURLOPT_POSTFIELDS=>json_encode(['model'=>setting('grok_model','grok-2-latest'),
+      CURLOPT_POSTFIELDS=>json_encode(['model'=>setting('groq_model','llama-3.3-70b-versatile'),
         'messages'=>[['role'=>'user','content'=>$prompt]], 'temperature'=>0.1, 'max_tokens'=>400])]);
     $res = curl_exec($ch); curl_close($ch);
     $j = json_decode($res ?: '', true);

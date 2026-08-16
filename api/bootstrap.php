@@ -123,6 +123,8 @@ function migrate(PDO $pdo): void {
   // column upgrades on existing installs
   try { $pdo->query('SELECT from_admin FROM notifications LIMIT 1'); }
   catch (Throwable $e) { $pdo->exec('ALTER TABLE notifications ADD COLUMN from_admin INTEGER NOT NULL DEFAULT 0'); }
+  try { $pdo->query('SELECT state FROM scans LIMIT 1'); }
+  catch (Throwable $e) { $pdo->exec("ALTER TABLE scans ADD COLUMN state VARCHAR(40) DEFAULT ''"); }
   seed($pdo);
   seed_v2($pdo);
 }
@@ -324,7 +326,48 @@ function rate_limit(string $action, string $ident, int $max, int $windowSec): vo
   }
   $pdo->prepare('UPDATE rate_limits SET hits=hits+1 WHERE bucket=?')->execute([$bucket]);
 }
-function client_ip(): string { return $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }
+function client_ip(): string {
+  $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+  if ($xff) return trim(explode(',', $xff)[0]);
+  return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+/* Resolve client IP -> Nigerian state (free ip-api.com, cached 30 days). */
+function geo_state(): string {
+  $ip = client_ip();
+  if (!$ip || $ip === '0.0.0.0' || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false)
+    return ''; // localhost / LAN — no geo possible
+  $key = 'geo:' . $ip;
+  $cached = setting($key);
+  if ($cached !== null) { $j = json_decode($cached, true); if ($j && time() - ($j['t'] ?? 0) < 86400 * 30) return $j['s']; }
+  $state = '';
+  if (function_exists('curl_init')) {
+    $ch = curl_init('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,countryCode,regionName');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3]);
+    $res = curl_exec($ch); curl_close($ch);
+    $j = json_decode($res ?: '', true);
+    if (($j['status'] ?? '') === 'success' && ($j['countryCode'] ?? '') === 'NG')
+      $state = normalize_ng_state($j['regionName'] ?? '');
+  }
+  try { set_setting($key, json_encode(['s' => $state, 't' => time()])); } catch (Throwable $e) {}
+  return $state;
+}
+
+/* Map geo provider region names to our geoBoundaries state names. */
+function normalize_ng_state(string $r): string {
+  $r = trim($r);
+  $map = [
+    'Federal Capital Territory' => 'FCT Abuja', 'FCT' => 'FCT Abuja', 'Abuja Federal Capital Territory' => 'FCT Abuja',
+    'Nassarawa' => 'Nasarawa', 'Cross River State' => 'Cross River',
+  ];
+  if (isset($map[$r])) return $map[$r];
+  $r = preg_replace('/s+State$/i', '', $r);
+  $valid = ['Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta','Ebonyi','Edo',
+    'Ekiti','Enugu','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos','Nasarawa','Niger',
+    'Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara','FCT Abuja'];
+  foreach ($valid as $v) if (strcasecmp($v, $r) === 0) return $v;
+  return '';
+}
 
 /* ---- plan-based daily scan quota ---- */
 function check_scan_quota(array $u): void {
@@ -337,8 +380,8 @@ function check_scan_quota(array $u): void {
     respond(['error' => "Daily scan limit reached ({$max} on the " . ucfirst($u['plan']) . " plan). Upgrade for more."], 429);
 }
 function save_scan(int $uid, string $type, string $subject, array $r): int {
-  db()->prepare('INSERT INTO scans(user_id,type,subject,verdict,risk,threat_type,explanation,recommendation,meta) VALUES(?,?,?,?,?,?,?,?,?)')
-    ->execute([$uid,$type,mb_substr($subject,0,500),$r['verdict'],$r['risk'],$r['threatType'],$r['explanation'],$r['recommendation'],json_encode($r['meta'] ?? new stdClass())]);
+  db()->prepare('INSERT INTO scans(user_id,type,subject,verdict,risk,threat_type,explanation,recommendation,meta,state) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    ->execute([$uid,$type,mb_substr($subject,0,500),$r['verdict'],$r['risk'],$r['threatType'],$r['explanation'],$r['recommendation'],json_encode($r['meta'] ?? new stdClass()),geo_state()]);
   $id = (int)db()->lastInsertId();
   if ($r['verdict'] === 'danger')
     notify($uid, 'danger', 'High-risk ' . $type . ' detected', mb_substr($subject, 0, 120) . ' — ' . $r['threatType']);
