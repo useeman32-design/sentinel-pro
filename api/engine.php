@@ -59,7 +59,20 @@ final class Engine {
       }
     }
 
-    // 6) live HTTP probe with redirect trace (only if it resolves)
+    // 6) RDAP domain intelligence: registration date, registrar, age scoring
+    $rdap = self::rdapLookup($host);
+    if ($rdap) {
+      $meta['domain_registered'] = $rdap['registered'] ?? null;
+      $meta['domain_expires'] = $rdap['expires'] ?? null;
+      $meta['registrar'] = $rdap['registrar'] ?? null;
+      $meta['domain_age_days'] = $rdap['age_days'] ?? null;
+      if (isset($rdap['age_days'])) {
+        if ($rdap['age_days'] < 30) { $score += 28; $signals[] = 'Domain registered only ' . $rdap['age_days'] . ' days ago (brand-new domains are a top phishing indicator)'; }
+        elseif ($rdap['age_days'] < 180) { $score += 12; $signals[] = 'Domain less than 6 months old'; }
+      }
+    }
+
+    // 7) live HTTP probe with redirect trace (only if it resolves)
     if ($ips && function_exists('curl_init')) {
       $ch = curl_init($url);
       curl_setopt_array($ch, [CURLOPT_NOBODY=>true, CURLOPT_FOLLOWLOCATION=>true, CURLOPT_MAXREDIRS=>5,
@@ -78,9 +91,16 @@ final class Engine {
 
     $risk = max(2, min(98, $score + 4));
     $verdict = $risk >= 65 ? 'danger' : ($risk >= 35 ? 'warn' : 'safe');
+    if (!empty($meta['domain_registered'])) {
+      $regInfo = 'Domain registered ' . $meta['domain_registered']
+        . (!empty($meta['registrar']) ? ' via ' . $meta['registrar'] : '')
+        . (isset($meta['domain_age_days']) ? ' (' . number_format($meta['domain_age_days']) . ' days old)' : '') . '.';
+      $signals[] = null; // keep array non-empty check intact
+      array_pop($signals);
+    } else { $regInfo = ''; }
     return self::result($verdict, $risk,
       $verdict==='danger' ? 'Phishing / Malicious Infrastructure' : ($verdict==='warn' ? 'Suspicious Characteristics' : 'None Detected'),
-      $signals ? 'Flagged signals: ' . implode('; ', array_unique($signals)) . '.' : 'Live DNS, TLS and structural analysis found no red flags for this URL.',
+      trim(($signals ? 'Flagged signals: ' . implode('; ', array_filter(array_unique($signals))) . '. ' : 'Live DNS, TLS, domain-registration and structural analysis found no red flags for this URL. ') . $regInfo),
       $verdict==='danger' ? 'Do NOT visit this link or enter credentials. Report to ngCERT (cert.gov.ng).' :
       ($verdict==='warn' ? 'Proceed with caution — verify the domain spelling and avoid entering sensitive data.' :
        'This link appears safe. Always double-check the domain before entering credentials.'),
@@ -106,15 +126,16 @@ final class Engine {
       }
     }
     $risk = max(2, min(98, $score));
-    $verdict = $risk >= ($channel==='sms' ? 55 : 60) ? 'danger' : ($risk >= 32 ? 'warn' : 'safe');
+    $verdict = $risk >= ($channel==='sms' ? 50 : 55) ? 'danger' : ($risk >= 28 ? 'warn' : 'safe');
     $label = $channel === 'sms' ? 'SMS' : 'email';
-    return self::result($verdict, $risk,
+    $base = self::result($verdict, $risk,
       $hits ? implode(' + ', array_slice(array_keys($cats), 0, 3)) : 'None Detected',
       $hits ? 'Detected indicators: ' . implode('; ', array_unique($hits)) . '.' : "No scam signatures, credential requests or malicious links detected in this {$label}.",
       $verdict==='danger' ? "Do not reply or click links in this {$label}. Report to your bank via official channels and forward SMS scams to 7726." :
       ($verdict==='warn' ? 'Verify the sender through an official channel before acting on this message.' :
        'Message appears clean. Banks never ask for full BVN, PIN or OTP.'),
       mb_substr($content, 0, 120) . (mb_strlen($content) > 120 ? '…' : ''));
+    return self::llmSecondOpinion($channel === 'sms' ? 'SMS message' : 'email', $content, $base);
   }
 
   /* ---------------- FILE (magic bytes + container inspection) ---------------- */
@@ -198,6 +219,101 @@ final class Engine {
       'recommendation' => $found ?
         'Change the password on every account using this email — especially email itself and banking. Enable 2FA everywhere and never reuse passwords.' :
         'No exposure found in known public breaches. Keep using unique passwords and enable 2FA as standard practice.'];
+  }
+
+  /* ---------------- RDAP (domain registration data) ---------------- */
+  static function rdapLookup(string $host): ?array {
+    if (filter_var($host, FILTER_VALIDATE_IP) || !function_exists('curl_init')) return null;
+    // strip subdomains: take last two labels (crude but effective for common TLDs)
+    $parts = explode('.', $host);
+    $n = count($parts);
+    $domain = $n >= 2 ? $parts[$n-2] . '.' . $parts[$n-1] : $host;
+    // handle common second-level TLDs like .com.ng, .co.uk, .gov.ng
+    if ($n >= 3 && in_array($parts[$n-2] . '.' . $parts[$n-1], ['com.ng','co.uk','gov.ng','org.ng','edu.ng','net.ng','com.gh','co.za'])) {
+      $domain = $parts[$n-3] . '.' . $domain;
+    }
+    $cacheKey = 'rdap:' . $domain;
+    $cached = setting($cacheKey);
+    if ($cached) { $j = json_decode($cached, true); if ($j && (time() - ($j['fetched'] ?? 0)) < 86400*7) return $j; }
+    $ch = curl_init('https://rdap.org/domain/' . rawurlencode($domain));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_FOLLOWLOCATION=>true, CURLOPT_MAXREDIRS=>4,
+      CURLOPT_TIMEOUT=>6, CURLOPT_CONNECTTIMEOUT=>4, CURLOPT_USERAGENT=>'SentinelAI/1.0']);
+    $res = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200 || !$res) return null;
+    $j = json_decode($res, true);
+    if (!$j) return null;
+    $out = ['domain' => $domain, 'fetched' => time()];
+    foreach (($j['events'] ?? []) as $ev) {
+      if (($ev['eventAction'] ?? '') === 'registration') $out['registered'] = substr($ev['eventDate'] ?? '', 0, 10);
+      if (($ev['eventAction'] ?? '') === 'expiration') $out['expires'] = substr($ev['eventDate'] ?? '', 0, 10);
+    }
+    foreach (($j['entities'] ?? []) as $en) {
+      if (in_array('registrar', $en['roles'] ?? [])) {
+        foreach (($en['vcardArray'][1] ?? []) as $v) if (($v[0] ?? '') === 'fn') { $out['registrar'] = $v[3] ?? null; break; }
+      }
+    }
+    if (!empty($out['registered'])) $out['age_days'] = max(0, (int)floor((time() - strtotime($out['registered'])) / 86400));
+    try { set_setting($cacheKey, json_encode($out)); } catch (Throwable $e) {}
+    return $out;
+  }
+
+  /* ---------------- LLM second opinion (Gemini / Grok) ---------------- */
+  static function llmSecondOpinion(string $kind, string $content, array $base): array {
+    $provider = setting('llm_provider', 'gemini');
+    $prompt = "You are a cybersecurity analyst for Nigerian users. Analyze this {$kind} for fraud/phishing/social engineering.\n"
+      . "Rule-based pre-scan risk: {$base['risk']}/100 ({$base['verdict']}).\n"
+      . "CONTENT:\n---\n" . mb_substr($content, 0, 4000) . "\n---\n"
+      . "Respond ONLY with compact JSON: {\"risk\":0-100,\"verdict\":\"safe|warn|danger\",\"threat_type\":\"...\",\"explanation\":\"1-3 sentences, plain language\",\"recommendation\":\"1-2 sentences\"}";
+    $reply = null; $used = null;
+    $try = $provider === 'grok' ? ['grok','gemini'] : ['gemini','grok'];
+    foreach ($try as $p) {
+      $reply = $p === 'gemini' ? self::callGemini($prompt) : self::callGrok($prompt);
+      if ($reply) { $used = $p; break; }
+    }
+    if (!$reply) return $base;
+    if (preg_match('/\{.*\}/s', $reply, $m)) {
+      $j = json_decode($m[0], true);
+      if ($j && isset($j['risk'], $j['verdict']) && in_array($j['verdict'], ['safe','warn','danger'])) {
+        // blend: take the HIGHER risk of rules vs LLM (defense in depth)
+        $risk = max((int)$base['risk'], min(98, (int)$j['risk']));
+        $verdict = $risk >= 60 ? 'danger' : ($risk >= 32 ? 'warn' : 'safe');
+        return [
+          'verdict' => $verdict, 'risk' => $risk,
+          'threatType' => $j['threat_type'] ?: $base['threatType'],
+          'explanation' => trim(($j['explanation'] ?? '') . ' ' . ($base['risk'] > 20 ? '(Rule engine: ' . $base['explanation'] . ')' : '')),
+          'recommendation' => $j['recommendation'] ?: $base['recommendation'],
+          'subject' => $base['subject'],
+          'meta' => ($base['meta'] ?? []) + ['llm' => $used, 'llm_risk' => (int)$j['risk'], 'rules_risk' => (int)$base['risk']],
+        ];
+      }
+    }
+    return $base;
+  }
+
+  static function callGemini(string $prompt): ?string {
+    $key = setting('gemini_api_key', ''); if (!$key) return null;
+    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . urlencode($key));
+    curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>20,
+      CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
+      CURLOPT_POSTFIELDS=>json_encode(['contents'=>[['role'=>'user','parts'=>[['text'=>$prompt]]]],
+        'generationConfig'=>['temperature'=>0.1,'maxOutputTokens'=>400]])]);
+    $res = curl_exec($ch); curl_close($ch);
+    $j = json_decode($res ?: '', true);
+    return $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
+  }
+
+  static function callGrok(string $prompt): ?string {
+    $key = setting('grok_api_key', ''); if (!$key) return null;
+    $ch = curl_init('https://api.x.ai/v1/chat/completions');
+    curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>20,
+      CURLOPT_HTTPHEADER=>['Content-Type: application/json','Authorization: Bearer ' . $key],
+      CURLOPT_POSTFIELDS=>json_encode(['model'=>setting('grok_model','grok-2-latest'),
+        'messages'=>[['role'=>'user','content'=>$prompt]], 'temperature'=>0.1, 'max_tokens'=>400])]);
+    $res = curl_exec($ch); curl_close($ch);
+    $j = json_decode($res ?: '', true);
+    return $j['choices'][0]['message']['content'] ?? null;
   }
 
   /* ---------------- shared ---------------- */

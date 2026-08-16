@@ -27,7 +27,10 @@ const ROUTES = {
   'breach-monitor':   { title: 'Breach Monitor', sub: 'Know when your data leaks', view: () => Scanners.breach(), bind: () => Scanners.bindBreach() },
   'threat-intel':     { title: 'Threat Intelligence', sub: 'Live threat landscape — Nigeria', view: () => IntelViews.intel(), bind: () => IntelViews.bindIntel() },
   reports:            { title: 'Reports', sub: 'Executive-ready security reporting', view: () => IntelViews.reports(), bind: () => IntelViews.bindReports() },
-  training:           { title: 'Training', sub: 'Level up your security skills', view: () => IntelViews.training(), bind: () => IntelViews.bindTraining() },
+  training:           { title: 'Cyber Academy', sub: 'Learn. Complete. Get certified.', view: () => Academy.list(), bind: () => Academy.bindList() },
+  course:             { title: 'Course', sub: 'Cyber Academy', view: () => Academy.detail(), bind: () => Academy.bindDetail() },
+  community:          { title: 'Community', sub: 'Share threats, tips & news', view: () => Community.list(), bind: () => Community.bindList() },
+  post:               { title: 'Post', sub: 'Community', view: () => Community.detail(), bind: () => Community.bindDetail() },
   assistant:          { title: 'AI Security Assistant', sub: 'Ask anything about staying safe', view: () => AssistantView.render(), bind: () => AssistantView.bind() },
   notifications:      { title: 'Notifications', sub: 'Alerts & activity', view: () => MiscViews.notifications(), bind: () => MiscViews.bindNotifications() },
   settings:           { title: 'Settings', sub: 'Make Sentinel yours', view: () => MiscViews.settings(), bind: () => MiscViews.bindSettings() },
@@ -51,7 +54,8 @@ const NAV = [
   { route: 'threat-intel', label: 'Threat Intelligence', icon: 'radar' },
   { group: 'Insights' },
   { route: 'reports', label: 'Reports', icon: 'report' },
-  { route: 'training', label: 'Training', icon: 'grad' },
+  { route: 'training', label: 'Cyber Academy', icon: 'grad' },
+  { route: 'community', label: 'Community', icon: 'sms' },
   { route: 'assistant', label: 'AI Assistant', icon: 'bot' },
   { group: 'Account' },
   { route: 'admin', label: 'Admin Panel', icon: 'lock', adminOnly: true },
@@ -191,6 +195,7 @@ const App = {
     } else {
       App.renderChrome();
       App.renderPage();
+      if (typeof Announcements !== 'undefined') Announcements.check();
     }
   },
 

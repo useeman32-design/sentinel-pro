@@ -14,17 +14,16 @@ const DashboardView = {
     const D = DashboardView.data;
     const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5); days.push(d.toLocaleDateString('en', { month: 'short', day: 'numeric' })); }
     const threatsPerDay = (D && D.threatsPerDay && D.threatsPerDay.length) ? D.threatsPerDay : days.map(l => ({ l, v: 0 }));
-    const score = D ? D.score : 84;
-    const scoreHistory = days.map((l, i) => ({ l, v: Math.max(10, score - (6 - i) * 2) }));
-    const logins = days.map((l, i) => ({ l, v: [1, 2, 1, 1, 2, 1, 1][i] }));
+    const scansPerDay = (D && D.scansPerDay && D.scansPerDay.length) ? D.scansPerDay : days.map(l => ({ l, v: 0 }));
+    const score = D ? D.score : null;
 
     return `
       <div class="grid grid-4">
         <div class="card stat-card" style="--stat-glow:rgba(0,255,136,.12)">
           <div class="stat-label">${Icons.shieldCheck} SECURITY SCORE</div>
-          <div class="stat-value" style="color:var(--green)">${score}<span style="font-size:15px;color:var(--text-dim)">/100</span></div>
+          <div class="stat-value" style="color:var(--green)">${score !== null ? score : '—'}<span style="font-size:15px;color:var(--text-dim)">/100</span></div>
           <span class="stat-delta up">${Icons.trendUp} Live from your scans</span>
-          ${Charts.spark(scoreHistory.map(p => p.v), '#00FF88', 'line')}
+          ${Charts.spark(scansPerDay.map(p => p.v + 0.15), '#00FF88', 'line')}
         </div>
         <div class="card stat-card" style="--stat-glow:rgba(255,77,109,.12);animation-delay:.05s">
           <div class="stat-label">${Icons.alert} THREATS DETECTED</div>
@@ -42,7 +41,7 @@ const DashboardView = {
           <div class="stat-label">${Icons.radar} RISK LEVEL</div>
           <div class="stat-value" style="color:var(--amber)">${D ? (D.threats >= 5 ? 'High' : D.threats >= 1 ? 'Medium' : 'Low') : 'Low'}</div>
           <span class="stat-delta up">${Icons.trendUp} Based on recent activity</span>
-          ${Charts.spark([62, 58, 55, 47, 40, 34, 28], '#FFB020', 'line')}
+          ${Charts.spark(threatsPerDay.map(p => p.v + 0.15), '#FFB020', 'line')}
         </div>
       </div>
 
@@ -68,8 +67,8 @@ const DashboardView = {
 
       <div class="section-gap grid grid-main">
         <div class="card">
-          <div class="card-title">${Icons.activity} Threats Per Day<span class="spacer"></span><span class="pill info"><span class="pdot"></span>Last 7 days</span></div>
-          ${Charts.bars(threatsPerDay, { unit: ' threats' })}
+          <div class="card-title">${Icons.activity} Scan Activity (7 days)<span class="spacer"></span><span class="pill info"><span class="pdot"></span>Last 7 days</span></div>
+          ${Charts.bars(scansPerDay, { unit: ' scans' })}
         </div>
         <div class="card">
           <div class="card-title">${Icons.radar} Threat Categories</div>
@@ -81,12 +80,12 @@ const DashboardView = {
 
       <div class="section-gap grid grid-2">
         <div class="card">
-          <div class="card-title">${Icons.trendUp} Security Score History</div>
-          ${Charts.line(scoreHistory, { color: '#00FF88', unit: '/100' })}
+          <div class="card-title">${Icons.trendUp} Scans Per Day<span class="spacer"></span><span class="pill safe"><span class="pdot"></span>Live</span></div>
+          ${Charts.line(scansPerDay, { color: '#00FF88', unit: ' scans' })}
         </div>
         <div class="card">
-          <div class="card-title">${Icons.clock} Login History</div>
-          ${Charts.line(logins, { color: '#00C8FF', unit: ' logins' })}
+          <div class="card-title">${Icons.activity} Threats Per Day<span class="spacer"></span><span class="pill danger"><span class="pdot"></span>Live</span></div>
+          ${Charts.line(threatsPerDay, { color: '#FF4D6D', unit: ' threats' })}
         </div>
       </div>
 

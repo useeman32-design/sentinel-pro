@@ -11,7 +11,7 @@ const MiscViews = {
     let items;
     try {
       const res = await API.getNotifications();
-      items = res.items.map(n => ({ type: n.type, title: n.title, text: n.body || '', unread: !n.read_at,
+      items = res.items.map(n => ({ type: n.type, title: n.title, text: n.body || '', unread: !n.read_at, fromAdmin: !!+(n.from_admin || 0),
         time: n.created_at ? new Date(n.created_at.replace(' ', 'T') + 'Z').getTime() : Date.now() }));
     } catch (e) { toast(e.message, 'err'); return; }
     const root = document.getElementById('notif-root');
@@ -25,9 +25,9 @@ const MiscViews = {
       ${items.map((n, i) => {
         const [col, ic] = iconFor(n.type);
         return `<div class="notif-item ${n.unread ? 'unread' : ''}" style="animation-delay:${i * 60}ms">
-          <div class="list-icon ${col}">${ic}</div>
+          ${n.fromAdmin ? `<div style="width:38px;height:38px;flex:none">${logoSVG(38)}</div>` : `<div class="list-icon ${col}">${ic}</div>`}
           <div class="notif-body">
-            <div class="notif-title">${esc(n.title)}</div>
+            <div class="notif-title">${esc(n.title)} ${n.fromAdmin ? '<span class="pill info" style="font-size:9px;padding:2px 8px;vertical-align:1px">OFFICIAL · SENTINEL TEAM</span>' : ''}</div>
             <div class="notif-text">${esc(n.text)}</div>
             <div class="notif-time">${timeAgo(n.time)}</div>
           </div></div>`;
@@ -195,7 +195,8 @@ const MiscViews = {
         ${tile('#/profile', Icons.user, 'var(--green-dim)', 'var(--green)', 'Profile', 'Account & subscription')}
         ${tile('#/reports', Icons.report, 'var(--blue-dim)', 'var(--blue)', 'Reports', 'Export security PDFs')}
         ${tile('#/training', Icons.grad, 'var(--amber-dim)', 'var(--amber)', 'Cyber Academy', 'Courses & certificates')}
-        ${tile('#/assistant', Icons.bot, 'var(--red-dim)', 'var(--red)', 'AI Assistant', 'Ask security questions')}
+        ${tile('#/community', Icons.sms, 'var(--red-dim)', 'var(--red)', 'Community', 'Share threats & tips')}
+        ${tile('#/assistant', Icons.bot, 'var(--green-dim)', 'var(--green)', 'AI Assistant', 'Ask security questions')}
       </div>
 
       <div class="nav-group" style="padding-left:2px">Protection</div>

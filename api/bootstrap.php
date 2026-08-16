@@ -95,10 +95,36 @@ function migrate(PDO $pdo): void {
       breach_date VARCHAR(12) DEFAULT '', data_types VARCHAR(255) DEFAULT '', records VARCHAR(20) DEFAULT '', verified INTEGER DEFAULT 1)",
     "CREATE TABLE IF NOT EXISTS breach_emails (id $id, email_hash CHAR(64) NOT NULL, breach_id INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(60) PRIMARY KEY, v TEXT)",
+    "CREATE TABLE IF NOT EXISTS courses (id $id, slug VARCHAR(80) NOT NULL UNIQUE, title VARCHAR(180) NOT NULL,
+      level VARCHAR(20) NOT NULL DEFAULT 'beginner', description TEXT, minutes INTEGER DEFAULT 30,
+      cover VARCHAR(80) DEFAULT 'green', active INTEGER NOT NULL DEFAULT 1, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS lessons (id $id, course_id INTEGER NOT NULL, position INTEGER NOT NULL DEFAULT 1,
+      title VARCHAR(180) NOT NULL, body_html TEXT, video_url VARCHAR(255) DEFAULT '')",
+    "CREATE TABLE IF NOT EXISTS quiz_questions (id $id, course_id INTEGER NOT NULL, question TEXT NOT NULL,
+      options_json TEXT NOT NULL, correct_index INTEGER NOT NULL DEFAULT 0)",
+    "CREATE TABLE IF NOT EXISTS course_progress (id $id, user_id INTEGER NOT NULL, course_id INTEGER NOT NULL,
+      lessons_done TEXT DEFAULT '[]', quiz_score INTEGER, completed_at TEXT, certificate_ref VARCHAR(40))",
+    "CREATE TABLE IF NOT EXISTS posts (id $id, user_id INTEGER NOT NULL, title VARCHAR(200) NOT NULL, body TEXT,
+      category VARCHAR(40) DEFAULT 'General', likes INTEGER NOT NULL DEFAULT 0, views INTEGER NOT NULL DEFAULT 0,
+      status VARCHAR(12) NOT NULL DEFAULT 'active', created_at $now)",
+    "CREATE TABLE IF NOT EXISTS post_likes (id $id, post_id INTEGER NOT NULL, user_id INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS comments (id $id, post_id INTEGER NOT NULL, user_id INTEGER NOT NULL, body TEXT NOT NULL,
+      status VARCHAR(12) NOT NULL DEFAULT 'active', created_at $now)",
+    "CREATE TABLE IF NOT EXISTS post_reports (id $id, post_id INTEGER, comment_id INTEGER, user_id INTEGER NOT NULL,
+      reason VARCHAR(255) DEFAULT '', status VARCHAR(12) NOT NULL DEFAULT 'open', created_at $now)",
+    "CREATE TABLE IF NOT EXISTS announcements (id $id, title VARCHAR(200) NOT NULL, body TEXT, category VARCHAR(40) DEFAULT 'General',
+      level VARCHAR(10) DEFAULT 'info', media_url TEXT DEFAULT '', media_type VARCHAR(10) DEFAULT '',
+      frequency VARCHAR(20) NOT NULL DEFAULT 'once', start_at TEXT, end_at TEXT, active INTEGER NOT NULL DEFAULT 1, created_at $now)",
+    "CREATE TABLE IF NOT EXISTS announcement_views (id $id, announcement_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+      shown_count INTEGER NOT NULL DEFAULT 0, last_shown_at INTEGER DEFAULT 0, dismissed INTEGER NOT NULL DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS rate_limits (bucket VARCHAR(120) PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0)",
   ];
   foreach ($tables as $sql) $pdo->exec($sql);
+  // column upgrades on existing installs
+  try { $pdo->query('SELECT from_admin FROM notifications LIMIT 1'); }
+  catch (Throwable $e) { $pdo->exec('ALTER TABLE notifications ADD COLUMN from_admin INTEGER NOT NULL DEFAULT 0'); }
   seed($pdo);
+  seed_v2($pdo);
 }
 
 function seed(PDO $pdo): void {
@@ -164,6 +190,51 @@ function seed_signatures(PDO $pdo): void {
     ['url','Phishing Keyword','/(login|verify|secure|account|update|confirm|wallet|airdrop|bonus|giveaway|promo)/i',14],
   ];
   foreach ($rules as $r) $sig->execute($r);
+}
+
+function seed_v2(PDO $pdo): void {
+  // Signature pack v2 — social engineering & sensitive-data solicitation
+  $marker = $pdo->query("SELECT COUNT(*) c FROM signatures WHERE category='Sensitive Data Solicitation'")->fetch()['c'];
+  if ((int)$marker === 0) {
+    $sig = $pdo->prepare("INSERT INTO signatures(channel,category,pattern,weight) VALUES(?,?,?,?)");
+    $v2 = [
+      ['email','Sensitive Data Solicitation','/(send|provide|share|give|submit|forward)\\s+(me|us|your|the)?\\s*(credit|debit)?\\s*card/i',34],
+      ['email','Sensitive Data Solicitation','/(credit card|debit card|card number|card details|cvv|security code|card pin)/i',30],
+      ['email','Sensitive Data Solicitation','/(send|provide|share|give|confirm).{0,50}(password|pin|otp|bvn|nin|account number|login details)/i',32],
+      ['email','Account Validation Ruse','/(validate|reactivate|restore|unlock|upgrade)\\s+(your)?\\s*account/i',24],
+      ['email','Payment Redirect Fraud','/(new|updated|changed)\\s+(bank|account|payment)\\s+(details|information)/i',26],
+      ['email','Job/Grant Scam','/(work from home|weekly salary|no experience|guaranteed (job|income)|registration fee)/i',20],
+      ['sms','Sensitive Data Solicitation','/(credit card|card number|cvv|card pin|send.{0,30}(pin|otp|password|bvn))/i',34],
+      ['sms','Account Validation Ruse','/(validate|reactivate|unlock|upgrade)\\s+(your)?\\s*(account|wallet|sim)/i',24],
+      ['sms','Delivery Scam','/(package|parcel|shipment|delivery).{0,40}(fee|customs|pay|held)/i',22],
+      ['url','Login Page Clone','/(signin|log-?in|auth|session|webscr|secure-?update)/i',12],
+    ];
+    foreach ($v2 as $r) $sig->execute($r);
+  }
+  // Starter course
+  $has = (int)$pdo->query('SELECT COUNT(*) c FROM courses')->fetch()['c'];
+  if ($has === 0) {
+    $pdo->prepare("INSERT INTO courses(slug,title,level,description,minutes,cover) VALUES(?,?,?,?,?,?)")
+        ->execute(['cyber-fundamentals','Cybersecurity Fundamentals','beginner',
+          'Passwords, phishing, safe browsing and protecting your phone — the essentials every Nigerian internet user needs.',45,'green']);
+    $cid = (int)$pdo->lastInsertId();
+    $L = $pdo->prepare("INSERT INTO lessons(course_id,position,title,body_html) VALUES(?,?,?,?)");
+    $L->execute([$cid,1,'Why Cybersecurity Matters in Nigeria',
+      '<p>Nigeria loses over <b>₦500 billion yearly</b> to cybercrime. Fraudsters target everyday people through SMS, WhatsApp, email and fake websites — not just companies.</p><p>In this course you will learn to recognise the tricks scammers use and build habits that keep your money, identity and accounts safe.</p><ul><li>Phishing &amp; smishing (SMS scams)</li><li>Password hygiene</li><li>Safe mobile banking</li><li>What to do if you are targeted</li></ul>']);
+    $L->execute([$cid,2,'Spotting Phishing Messages',
+      '<p>Phishing messages share tell-tale signs:</p><ul><li><b>Urgency:</b> \"act within 24 hours or your account will be blocked\"</li><li><b>Generic greeting:</b> \"Dear customer\" instead of your name</li><li><b>Suspicious links:</b> strange domains like gtbank-verify.tk</li><li><b>Requests for secrets:</b> banks NEVER ask for your full BVN, PIN or OTP</li></ul><p>When in doubt: do not click. Open your bank\'s official app instead.</p>']);
+    $L->execute([$cid,3,'Building Strong Passwords',
+      '<p>Length beats complexity. A 14-character passphrase like <b>PurpleGoat!Dances@Midnight</b> takes centuries to crack; <b>P@ssw0rd1</b> falls in minutes.</p><ul><li>Use a different password for every account</li><li>Use a password manager (Bitwarden is free)</li><li>Turn on two-factor authentication everywhere — app-based beats SMS</li></ul>']);
+    $L->execute([$cid,4,'Securing Your Phone & Bank Apps',
+      '<p>Your phone is your bank branch. Protect it:</p><ul><li>Set a SIM PIN with your network to block SIM-swap fraud</li><li>Install apps only from Google Play / App Store</li><li>Never grant Accessibility permission to random apps</li><li>Enable transaction alerts and biometric login</li></ul><p>If your phone is stolen: block your SIM and bank apps FIRST, before anything else.</p>']);
+    $Q = $pdo->prepare("INSERT INTO quiz_questions(course_id,question,options_json,correct_index) VALUES(?,?,?,?)");
+    $Q->execute([$cid,'Your \"bank\" sends an SMS asking you to confirm your BVN and OTP via a link. What do you do?',
+      json_encode(['Click quickly before the account is blocked','Reply with the details','Ignore/delete — banks never ask for BVN/OTP by SMS','Forward it to friends to check']),2]);
+    $Q->execute([$cid,'Which password is strongest?',
+      json_encode(['P@ss123','MyDogFred2020','Turquoise-Hippo-Eats-42-Mangoes!','qwerty2024']),2]);
+    $Q->execute([$cid,'What is the FIRST thing to do if your phone with banking apps is stolen?',
+      json_encode(['Buy a new phone','Post about it online','Block your SIM and freeze banking apps','Wait to see if it is returned']),2]);
+  }
 }
 
 /* ---------------- helpers ---------------- */

@@ -13,7 +13,8 @@ const AdminView = {
         <div class="hint" style="margin-top:6px">Sign in with a super-admin account to manage the platform.</div></div>`;
     const tabs = [
       ['overview', 'Overview'], ['users', 'Users'], ['signatures', 'Signatures'],
-      ['blocklist', 'Blocklist'], ['intel', 'Threat Intel'], ['settings', 'Settings'],
+      ['blocklist', 'Blocklist'], ['intel', 'Threat Intel'], ['academy', 'Academy'],
+      ['community', 'Community'], ['announce', 'Announcements'], ['settings', 'Settings'],
     ];
     return `
       <div class="tabs" style="margin-bottom:16px" id="admin-tabs">
@@ -231,15 +232,24 @@ const AdminView = {
     const s = await API.admin.settings();
     body.innerHTML = `
       <div class="card">
-        <div class="card-title">${Icons.bot} Gemini AI (platform-wide)</div>
-        <p class="hint" style="margin-bottom:12px">The key is stored server-side and never exposed to users. It powers the AI Assistant for everyone.</p>
-        <div class="input-row" style="max-width:460px">
-          <input class="input" type="password" id="ad-gemini" placeholder="${s.gemini_key_set ? s.gemini_key_masked + ' (set — enter new to replace)' : 'AIza… paste Gemini API key'}">
+        <div class="card-title">${Icons.bot} AI Engine (platform-wide)</div>
+        <p class="hint" style="margin-bottom:12px">Keys are stored server-side, never exposed to users. The LLM gives a second opinion on email/SMS scans and powers the Assistant. Rules always run first; the higher risk wins.</p>
+        <div class="set-row"><div class="set-body"><div class="set-title">Primary provider</div><div class="set-sub">Falls back to the other automatically if the primary fails</div></div>
+          <div class="tabs" style="flex:none;padding:4px">
+            <button class="tab ${s.llm_provider !== 'grok' ? 'active' : ''}" data-llm="gemini">Gemini</button>
+            <button class="tab ${s.llm_provider === 'grok' ? 'active' : ''}" data-llm="grok">Grok</button>
+          </div></div>
+        <div class="grid grid-2" style="gap:12px;margin-top:12px">
+          <div><label class="hint" style="display:block;margin-bottom:5px">Gemini API key ${s.gemini_key_set ? '· <b style="color:var(--green)">set</b> (' + s.gemini_key_masked + ')' : ''}</label>
+            <input class="input" type="password" id="ad-gemini" placeholder="AIza…"></div>
+          <div><label class="hint" style="display:block;margin-bottom:5px">Grok (x.ai) API key ${s.grok_key_set ? '· <b style="color:var(--green)">set</b> (' + s.grok_key_masked + ')' : ''}</label>
+            <input class="input" type="password" id="ad-grok" placeholder="xai-…"></div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-primary btn-sm" style="width:auto" id="ad-save-key">Save Key</button>
-          ${s.gemini_key_set ? '<button class="btn btn-danger btn-sm" id="ad-clear-key">Remove Key</button>' : ''}
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" style="width:auto" id="ad-save-key">Save Keys</button>
+          <button class="btn btn-ghost btn-sm" id="ad-test-llm">🧪 Test LLM (credit-card phrase)</button>
         </div>
+        <div id="llm-test-out" style="margin-top:10px"></div>
       </div>
       <div class="section-gap card">
         <div class="card-title">${Icons.settings} Platform</div>
@@ -258,18 +268,236 @@ const AdminView = {
           `<div class="list-item" style="padding:8px 0"><div class="list-icon blue" style="width:26px;height:26px;border-radius:7px">${Icons.check}</div>
             <div class="list-sub" style="white-space:normal;color:var(--text)">${t}</div></div>`).join('')}
       </div>`;
+    document.querySelectorAll('[data-llm]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.saveSettings({ llm_provider: b.dataset.llm });
+      toast('Primary LLM: ' + b.dataset.llm.toUpperCase(), 'ok'); AdminView.loadTab();
+    }));
     document.getElementById('ad-save-key').addEventListener('click', async () => {
-      const v = document.getElementById('ad-gemini').value.trim();
-      if (!v) return toast('Paste a key first.', 'err');
-      await API.admin.saveSettings({ gemini_api_key: v });
-      toast('Gemini key saved — AI Assistant is now live for all users. 🔥', 'ok'); AdminView.loadTab();
+      const g = document.getElementById('ad-gemini').value.trim();
+      const x = document.getElementById('ad-grok').value.trim();
+      if (!g && !x) return toast('Paste at least one key.', 'err');
+      const payload = {};
+      if (g) payload.gemini_api_key = g;
+      if (x) payload.grok_api_key = x;
+      await API.admin.saveSettings(payload);
+      toast('AI keys saved — scanners now get LLM second opinions. 🔥', 'ok'); AdminView.loadTab();
     });
-    document.getElementById('ad-clear-key')?.addEventListener('click', async () => {
-      await API.admin.saveSettings({ gemini_api_key: '' }); toast('Key removed.', 'info'); AdminView.loadTab();
+    document.getElementById('ad-test-llm').addEventListener('click', async () => {
+      const out = document.getElementById('llm-test-out');
+      out.innerHTML = '<div class="skel" style="height:60px"></div>';
+      try {
+        const r = await API.admin.testLLM();
+        out.innerHTML = `<div class="card" style="padding:12px;background:var(--surface-2)">
+          <div class="hint">Provider used: <b style="color:var(--green)">${esc(r.llm_used)}</b></div>
+          <div style="font-size:13px;margin-top:6px">Verdict: <span class="pill ${r.result.verdict === 'danger' ? 'danger' : r.result.verdict === 'warn' ? 'warn' : 'safe'}">${r.result.verdict}</span> · Risk ${r.result.risk}/100</div>
+          <div class="hint" style="margin-top:6px">${esc(r.result.explanation || '')}</div></div>`;
+      } catch (e) { out.innerHTML = '<div class="hint" style="color:var(--red)">' + esc(e.message) + '</div>'; }
     });
     document.getElementById('ad-dev').addEventListener('change', async e => {
       await API.admin.saveSettings({ dev_mode: e.target.checked });
       toast('Developer mode ' + (e.target.checked ? 'ON' : 'OFF') + '.', 'ok');
+    });
+  },
+
+  /* ---------------- ACADEMY ---------------- */
+  async tab_academy(body) {
+    const { items } = await API.getCourses();
+    body.innerHTML = `
+      <div class="card">
+        <div class="card-title">${Icons.grad} Courses<span class="spacer"></span><span class="tag">${items.length}</span></div>
+        ${items.map(c => `<div class="list-item">
+          <div class="list-icon green">${Icons.grad}</div>
+          <div class="list-body"><div class="list-title">${esc(c.title)}</div>
+            <div class="list-sub">${c.level} · ${c.lesson_count} lessons · ${c.minutes} min</div></div>
+          <button class="btn btn-ghost btn-sm" data-manage="${c.id}">Manage Content</button>
+        </div>`).join('') || '<div class="hint">No courses yet.</div>'}
+      </div>
+      <div class="section-gap card">
+        <div class="card-title">＋ New Course</div>
+        <div class="grid grid-2" style="gap:10px">
+          <input class="input" id="ac-title" placeholder="Course title">
+          <div class="grid grid-2" style="gap:10px">
+            <select class="input" id="ac-level"><option>beginner</option><option>intermediate</option><option>advanced</option></select>
+            <input class="input" id="ac-min" type="number" value="45" min="5" placeholder="Minutes"></div>
+        </div>
+        <textarea class="input section-gap" id="ac-desc" placeholder="Short description…" style="min-height:60px"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="btn btn-primary btn-sm" style="width:auto" id="ac-add">Create Course</button></div>
+      </div>
+      <div id="ac-manage"></div>`;
+    document.getElementById('ac-add').addEventListener('click', async () => {
+      const t = document.getElementById('ac-title').value.trim();
+      if (t.length < 4) return toast('Enter a course title.', 'err');
+      await API.admin.addCourse({ title: t, level: document.getElementById('ac-level').value,
+        minutes: +document.getElementById('ac-min').value, description: document.getElementById('ac-desc').value.trim(),
+        cover: ['green','blue','red'][Math.floor(Math.random() * 3)] });
+      toast('Course created — now add lessons via Manage Content.', 'ok'); AdminView.loadTab();
+    });
+    body.querySelectorAll('[data-manage]').forEach(b => b.addEventListener('click', () => AdminView.manageCourse(+b.dataset.manage)));
+  },
+
+  async manageCourse(cid) {
+    const c = await API.getCourse(cid);
+    const el = document.getElementById('ac-manage');
+    el.innerHTML = `
+      <div class="section-gap card">
+        <div class="card-title">✏️ ${esc(c.title)} — Lessons</div>
+        ${c.lessons.map(l => `<div class="list-item">
+          <div class="list-icon blue" style="width:28px;height:28px;border-radius:8px"><span style="font-size:11px;font-weight:700">${l.position}</span></div>
+          <div class="list-body"><div class="list-sub" style="color:var(--text)">${esc(l.title)}</div></div>
+          <button class="btn btn-danger btn-sm" data-del-lesson="${l.id}" style="padding:4px 8px">${Icons.x}</button>
+        </div>`).join('') || '<div class="hint">No lessons yet.</div>'}
+        <div class="divider"></div>
+        <input class="input" id="al-title" placeholder="Lesson title">
+        <textarea class="input section-gap" id="al-body" placeholder="Lesson content (HTML allowed: <p>, <ul>, <b>…)" style="min-height:90px"></textarea>
+        <input class="input section-gap" id="al-video" placeholder="Video embed URL (optional, e.g. https://www.youtube.com/embed/…)">
+        <div style="display:flex;justify-content:flex-end;margin-top:10px">
+          <button class="btn btn-primary btn-sm" style="width:auto" id="al-add">Add Lesson</button></div>
+      </div>
+      <div class="section-gap card">
+        <div class="card-title">📝 Quiz Questions (${c.quiz.length})</div>
+        ${c.quiz.map(q => `<div class="list-item">
+          <div class="list-body"><div class="list-sub" style="color:var(--text)">${esc(q.question)}</div></div>
+          <button class="btn btn-danger btn-sm" data-del-quiz="${q.id}" style="padding:4px 8px">${Icons.x}</button>
+        </div>`).join('') || '<div class="hint">No questions yet.</div>'}
+        <div class="divider"></div>
+        <input class="input" id="aq-q" placeholder="Question text">
+        <div class="grid grid-2" style="gap:8px;margin-top:8px">
+          ${[0,1,2,3].map(i => `<input class="input" id="aq-o${i}" placeholder="Option ${i + 1}">`).join('')}
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <select class="input" id="aq-correct" style="width:auto">${[0,1,2,3].map(i => `<option value="${i}">Correct: Option ${i + 1}</option>`).join('')}</select>
+          <button class="btn btn-primary btn-sm" style="width:auto" id="aq-add">Add Question</button>
+        </div>
+      </div>`;
+    el.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('al-add').addEventListener('click', async () => {
+      const t = document.getElementById('al-title').value.trim();
+      if (!t) return toast('Lesson title required.', 'err');
+      await API.admin.addLesson(cid, { title: t, body_html: document.getElementById('al-body').value, video_url: document.getElementById('al-video').value.trim() });
+      toast('Lesson added.', 'ok'); AdminView.manageCourse(cid);
+    });
+    el.querySelectorAll('[data-del-lesson]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.deleteLesson(b.dataset.delLesson); toast('Lesson removed.', 'ok'); AdminView.manageCourse(cid);
+    }));
+    document.getElementById('aq-add').addEventListener('click', async () => {
+      const q = document.getElementById('aq-q').value.trim();
+      const opts = [0,1,2,3].map(i => document.getElementById('aq-o' + i).value.trim()).filter(Boolean);
+      if (!q || opts.length < 2) return toast('Question + at least 2 options required.', 'err');
+      await API.admin.addQuiz(cid, { question: q, options: opts, correct_index: +document.getElementById('aq-correct').value });
+      toast('Question added.', 'ok'); AdminView.manageCourse(cid);
+    });
+    el.querySelectorAll('[data-del-quiz]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.deleteQuiz(b.dataset.delQuiz); toast('Question removed.', 'ok'); AdminView.manageCourse(cid);
+    }));
+  },
+
+  /* ---------------- COMMUNITY MODERATION ---------------- */
+  async tab_community(body) {
+    const d = await API.admin.community();
+    body.innerHTML = `
+      ${d.reports.length ? `<div class="card" style="border-color:rgba(255,77,109,.4)">
+        <div class="card-title">⚑ Open Reports<span class="spacer"></span><span class="pill danger">${d.reports.length}</span></div>
+        ${d.reports.map(r => `<div class="list-item">
+          <div class="list-icon red">${Icons.alert}</div>
+          <div class="list-body"><div class="list-sub" style="color:var(--text)">${r.post_id ? 'Post #' + r.post_id : 'Comment #' + r.comment_id} reported by ${esc(r.reporter)}</div>
+            <div class="list-sub">Reason: ${esc(r.reason || 'not given')}</div></div>
+          <div style="display:flex;gap:6px">
+            ${r.post_id ? `<button class="btn btn-danger btn-sm" data-hide-post="${r.post_id}" data-resolve="${r.id}">Hide Post</button>` : ''}
+            ${r.comment_id ? `<button class="btn btn-danger btn-sm" data-hide-comment="${r.comment_id}" data-resolve="${r.id}">Hide Comment</button>` : ''}
+            <button class="btn btn-ghost btn-sm" data-dismiss="${r.id}">Dismiss</button>
+          </div>
+        </div>`).join('')}
+      </div><div class="section-gap"></div>` : ''}
+      <div class="card">
+        <div class="card-title">${Icons.sms} All Posts<span class="spacer"></span><span class="tag">${d.posts.length}</span></div>
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr><th>Post</th><th>Author</th><th>💚</th><th>👁</th><th>Status</th><th></th></tr></thead>
+          <tbody>${d.posts.map(p => `<tr style="${p.status !== 'active' ? 'opacity:.45' : ''}">
+            <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(p.title)}</b></td>
+            <td>${esc(p.author)}</td><td>${p.likes}</td><td>${p.views}</td>
+            <td><span class="pill ${p.status === 'active' ? 'safe' : 'danger'}">${p.status}</span></td>
+            <td>${p.status === 'active'
+              ? `<button class="btn btn-danger btn-sm" data-post-status="hidden" data-pid="${p.id}">Hide</button>`
+              : `<button class="btn btn-ghost btn-sm" data-post-status="active" data-pid="${p.id}">Restore</button>`}</td>
+          </tr>`).join('')}</tbody></table></div>
+      </div>`;
+    body.querySelectorAll('[data-post-status]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.setPostStatus(b.dataset.pid, b.dataset.postStatus); toast('Post updated.', 'ok'); AdminView.loadTab();
+    }));
+    body.querySelectorAll('[data-hide-post]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.setPostStatus(b.dataset.hidePost, 'hidden');
+      await API.admin.resolveReport(b.dataset.resolve);
+      toast('Post hidden & report resolved.', 'ok'); AdminView.loadTab();
+    }));
+    body.querySelectorAll('[data-hide-comment]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.setCommentStatus(b.dataset.hideComment, 'hidden');
+      await API.admin.resolveReport(b.dataset.resolve);
+      toast('Comment hidden & report resolved.', 'ok'); AdminView.loadTab();
+    }));
+    body.querySelectorAll('[data-dismiss]').forEach(b => b.addEventListener('click', async () => {
+      await API.admin.resolveReport(b.dataset.dismiss); toast('Report dismissed.', 'ok'); AdminView.loadTab();
+    }));
+  },
+
+  /* ---------------- ANNOUNCEMENTS ---------------- */
+  async tab_announce(body) {
+    const { items } = await API.admin.announcements();
+    const freqLabel = { once: 'Once per user', daily: 'Once a day', twice_daily: 'Twice a day', every_open: 'Every app open' };
+    body.innerHTML = `
+      <div class="card">
+        <div class="card-title">📣 Announcements</div>
+        ${items.map(a => `<div class="list-item" style="${a.active ? '' : 'opacity:.45'}">
+          <div class="list-icon ${a.level === 'danger' ? 'red' : a.level === 'warn' ? 'amber' : 'blue'}">${Icons.bell}</div>
+          <div class="list-body"><div class="list-title">${esc(a.title)}</div>
+            <div class="list-sub">${esc(a.category)} · ${freqLabel[a.frequency] || a.frequency}${a.start_at ? ' · from ' + a.start_at : ''}${a.end_at ? ' · until ' + a.end_at : ''}${a.media_url ? ' · 📎 ' + a.media_type : ''}</div></div>
+          <label class="toggle" style="transform:scale(.85)"><input type="checkbox" data-an-toggle="${a.id}" ${a.active ? 'checked' : ''}><span class="tk"></span></label>
+        </div>`).join('') || '<div class="hint">No announcements yet.</div>'}
+      </div>
+      <div class="section-gap card">
+        <div class="card-title">＋ New Announcement</div>
+        <div class="grid grid-2" style="gap:10px">
+          <input class="input" id="an-title" placeholder="Title">
+          <div class="grid grid-2" style="gap:10px">
+            <input class="input" id="an-cat" placeholder="Category (e.g. Update)">
+            <select class="input" id="an-level"><option value="info">Info</option><option value="warn">Warning</option><option value="danger">Critical</option></select>
+          </div>
+        </div>
+        <textarea class="input section-gap" id="an-body" placeholder="Message…" style="min-height:80px"></textarea>
+        <div class="grid grid-2" style="gap:10px;margin-top:10px">
+          <input class="input" id="an-media" placeholder="Media URL (image/video link, optional)">
+          <select class="input" id="an-mtype"><option value="">No media</option><option value="image">Image</option><option value="video">Video</option></select>
+        </div>
+        <div class="grid grid-3" style="gap:10px;margin-top:10px">
+          <div><label class="hint" style="display:block;margin-bottom:4px">Show frequency</label>
+            <select class="input" id="an-freq"><option value="once">Once per user</option><option value="daily">Once a day</option>
+              <option value="twice_daily">Twice a day</option><option value="every_open">Every app open</option></select></div>
+          <div><label class="hint" style="display:block;margin-bottom:4px">Start (optional)</label>
+            <input class="input" type="datetime-local" id="an-start"></div>
+          <div><label class="hint" style="display:block;margin-bottom:4px">End (optional)</label>
+            <input class="input" type="datetime-local" id="an-end"></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="btn btn-primary btn-sm" style="width:auto" id="an-add">📣 Publish Announcement</button></div>
+      </div>`;
+    body.querySelectorAll('[data-an-toggle]').forEach(t => t.addEventListener('change', async () => {
+      await API.admin.toggleAnnouncement(t.dataset.anToggle, t.checked);
+      toast('Announcement ' + (t.checked ? 'activated' : 'deactivated') + '.', 'ok');
+    }));
+    document.getElementById('an-add').addEventListener('click', async () => {
+      const title = document.getElementById('an-title').value.trim();
+      if (!title) return toast('Enter a title.', 'err');
+      await API.admin.addAnnouncement({
+        title, body: document.getElementById('an-body').value.trim(),
+        category: document.getElementById('an-cat').value.trim() || 'General',
+        level: document.getElementById('an-level').value,
+        media_url: document.getElementById('an-media').value.trim(),
+        media_type: document.getElementById('an-mtype').value,
+        frequency: document.getElementById('an-freq').value,
+        start_at: (document.getElementById('an-start').value || '').replace('T', ' '),
+        end_at: (document.getElementById('an-end').value || '').replace('T', ' '),
+      });
+      toast('Announcement published.', 'ok'); AdminView.loadTab();
     });
   },
 };

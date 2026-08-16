@@ -102,45 +102,107 @@ const IntelViews = {
     document.body.appendChild(scrim);
   },
 
-  /* ---------- REPORTS ---------- */
+  /* ---------- REPORTS + SCAN HISTORY ---------- */
   reports() {
-    return `<div id="reports-root">
-      <div class="card"><div class="card-title">${Icons.report} Security Reports</div>
-      ${'<div class="skel" style="height:52px;margin-bottom:10px"></div>'.repeat(4)}</div></div>`;
-  },
-  async bindReports() {
-    let rows;
-    try { rows = (await API.getReports()).items.map(r => ({ ...r, status: 'Ready', date: (r.date||'').slice(0,10), risk: r.risk || 'Low' })); }
-    catch (e) { toast(e.message, 'err'); return; }
-    const root = document.getElementById('reports-root');
-    if (!root) return;
-    const riskPill = r => r === 'High' ? 'danger' : r === 'Medium' ? 'warn' : 'safe';
-    root.innerHTML = `
-      <div class="card">
-        <div class="card-title">${Icons.report} Security Reports<span class="spacer"></span>
-          <button class="btn btn-primary btn-sm" style="width:auto" id="new-report-btn">+ Generate Report</button></div>
-        <div class="table-wrap"><table class="tbl">
-          <thead><tr><th>ID</th><th>Report</th><th>Date</th><th>Threats</th><th>Risk Level</th><th>Status</th><th></th></tr></thead>
-          <tbody>${rows.map(r => `<tr>
-            <td style="color:var(--text-faint)">${r.id}</td>
-            <td><b>${esc(r.title)}</b></td>
-            <td>${r.date}</td>
-            <td>${r.threats}</td>
-            <td><span class="pill ${riskPill(r.risk)}">${r.risk}</span></td>
-            <td>${r.status}</td>
-            <td><button class="btn btn-ghost btn-sm pdf-btn" data-id="${r.id}" data-title="${esc(r.title)}" data-date="${r.date}" data-risk="${r.risk}" data-threats="${r.threats}">${Icons.download} PDF</button></td>
-          </tr>`).join('')}</tbody>
-        </table></div>
+    return `
+      <div class="tabs" id="rep-tabs" style="margin-bottom:14px">
+        <button class="tab active" data-t="history">Scan History</button>
+        <button class="tab" data-t="reports">Generated Reports</button>
       </div>
-      <div class="section-gap card glass">
-        <div class="card-title">${Icons.info} About Reports</div>
-        <p class="hint" style="font-size:13px">Reports aggregate your scans, detected threats, and risk posture into an executive summary with recommendations — ready to share with your team, management, or auditors. PDF generation will be finalized on the PHP backend (<span class="kbd">GET /api/reports/:id/pdf</span>); the button below produces a print-ready version in the meantime.</p>
-      </div>`;
-    document.getElementById('new-report-btn').addEventListener('click', async () => {
-      try { const r = await API.createReport(); toast('Report ' + r.ref + ' generated from your real scan history.', 'ok'); IntelViews.bindReports(); }
-      catch (e) { toast(e.message, 'err'); }
+      <div id="rep-body"><div class="skel" style="height:200px"></div></div>`;
+  },
+  _repTab: 'history',
+  async bindReports() {
+    document.getElementById('rep-tabs').addEventListener('click', e => {
+      const t = e.target.closest('.tab'); if (!t) return;
+      IntelViews._repTab = t.dataset.t;
+      document.querySelectorAll('#rep-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
+      IntelViews.loadRepTab();
     });
-    root.querySelectorAll('.pdf-btn').forEach(b => b.addEventListener('click', () => IntelViews.exportPDF(b.dataset)));
+    IntelViews.loadRepTab();
+  },
+  async loadRepTab() {
+    const body = document.getElementById('rep-body');
+    if (!body) return;
+    body.innerHTML = '<div class="skel" style="height:200px"></div>';
+    if (IntelViews._repTab === 'history') return IntelViews.renderHistory(body);
+    return IntelViews.renderGenerated(body);
+  },
+
+  async renderHistory(body, filters = {}) {
+    let items;
+    try { items = (await API.getScans(filters)).items; } catch (e) { toast(e.message, 'err'); return; }
+    const icmap = { link: 'link', email: 'mail', sms: 'sms', qr: 'qr', file: 'file', breach: 'eye' };
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+          <div style="flex:1;min-width:110px"><label class="hint" style="display:block;margin-bottom:5px">Type</label>
+            <select class="input" id="f-type"><option value="">All</option>${['link','email','sms','qr','file','breach'].map(t => `<option ${filters.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          <div style="flex:1;min-width:110px"><label class="hint" style="display:block;margin-bottom:5px">Verdict</label>
+            <select class="input" id="f-verdict"><option value="">All</option>${['safe','warn','danger'].map(v => `<option ${filters.verdict === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div style="flex:1;min-width:130px"><label class="hint" style="display:block;margin-bottom:5px">From</label>
+            <input class="input" type="date" id="f-from" value="${filters.from || ''}"></div>
+          <div style="flex:1;min-width:130px"><label class="hint" style="display:block;margin-bottom:5px">To</label>
+            <input class="input" type="date" id="f-to" value="${filters.to || ''}"></div>
+          <button class="btn btn-ghost btn-sm" id="f-apply">Filter</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">${Icons.clock} Scan History<span class="spacer"></span><span class="tag">${items.length} results</span></div>
+        ${items.length ? items.map(r => `
+          <div class="list-item">
+            <div class="list-icon ${r.verdict === 'danger' ? 'red' : r.verdict === 'warn' ? 'amber' : 'green'}">${Icons[icmap[r.type]] || Icons.scan}</div>
+            <div class="list-body"><div class="list-title">${esc(r.subject)}</div>
+              <div class="list-sub">${r.type.toUpperCase()} · ${esc(r.threat_type || '')} · risk ${r.risk}/100</div></div>
+            <div class="list-end"><span class="pill ${r.verdict === 'danger' ? 'danger' : r.verdict === 'warn' ? 'warn' : 'safe'}">${r.verdict.toUpperCase()}</span>
+              <div style="margin-top:4px">${(r.created_at || '').slice(0, 16).replace('T', ' ')}</div></div>
+          </div>`).join('') : `<div class="empty">${Icons.scan}<div style="font-weight:600;color:var(--text)">No scans match</div><div class="hint" style="margin-top:4px">Adjust the filters or run some scans.</div></div>`}
+      </div>`;
+    document.getElementById('f-apply').addEventListener('click', () => IntelViews.renderHistory(body, {
+      type: document.getElementById('f-type').value, verdict: document.getElementById('f-verdict').value,
+      from: document.getElementById('f-from').value, to: document.getElementById('f-to').value,
+    }));
+  },
+
+  async renderGenerated(body) {
+    let rows;
+    try { rows = (await API.getReports()).items; } catch (e) { toast(e.message, 'err'); return; }
+    const riskPill = r => r === 'High' ? 'danger' : r === 'Medium' ? 'warn' : 'safe';
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">＋ Generate Report</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+          <div style="flex:1;min-width:130px"><label class="hint" style="display:block;margin-bottom:5px">From</label>
+            <input class="input" type="date" id="r-from" value="${new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10)}"></div>
+          <div style="flex:1;min-width:130px"><label class="hint" style="display:block;margin-bottom:5px">To</label>
+            <input class="input" type="date" id="r-to" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <button class="btn btn-primary btn-sm" style="width:auto" id="r-gen">Generate</button>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+          ${['link','email','sms','qr','file','breach'].map(t => `<label class="check"><input type="checkbox" class="r-type" value="${t}" checked> ${t}</label>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">${Icons.report} Generated Reports</div>
+        ${rows.length ? `<div class="table-wrap"><table class="tbl">
+          <thead><tr><th>ID</th><th>Report</th><th>Date</th><th>Threats</th><th>Risk</th><th></th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td style="color:var(--text-faint)">${r.id}</td><td><b>${esc(r.title)}</b></td>
+            <td>${(r.date || '').slice(0, 10)}</td><td>${r.threats}</td>
+            <td><span class="pill ${riskPill(r.risk)}">${r.risk}</span></td>
+            <td><button class="btn btn-ghost btn-sm pdf-btn" data-id="${r.id}" data-title="${esc(r.title)}" data-date="${(r.date || '').slice(0, 10)}" data-risk="${r.risk}" data-threats="${r.threats}">${Icons.download} PDF</button></td>
+          </tr>`).join('')}</tbody></table></div>`
+        : `<div class="empty">${Icons.report}<div style="font-weight:600;color:var(--text)">No reports yet</div><div class="hint" style="margin-top:4px">Generate your first report above.</div></div>`}
+      </div>`;
+    document.getElementById('r-gen').addEventListener('click', async () => {
+      const types = [...document.querySelectorAll('.r-type:checked')].map(c => c.value);
+      try {
+        const r = await API.createReportFiltered(document.getElementById('r-from').value, document.getElementById('r-to').value, types);
+        toast(`Report ${r.ref} generated: ${r.summary.total} scans, ${r.summary.danger} threats (${r.summary.risk} risk).`, 'ok', 4500);
+        IntelViews.renderGenerated(body);
+      } catch (e) { toast(e.message, 'err'); }
+    });
+    body.querySelectorAll('.pdf-btn').forEach(b => b.addEventListener('click', () => IntelViews.exportPDF(b.dataset)));
   },
 
   exportPDF(d) {

@@ -68,6 +68,34 @@ const API = {
   getReports: () => API.request('/reports'),
   createReport: () => API.request('/reports', { method: 'POST' }),
 
+  getScans: (filters = {}) => {
+    const q = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+    return API.request('/scans' + (q ? '?' + q : ''));
+  },
+  createReportFiltered: (from, to, types) => API.request('/reports', { method: 'POST', body: { from, to, types } }),
+
+  /* ---------- ACADEMY ---------- */
+  getCourses: () => API.request('/courses'),
+  getCourse: (id) => API.request('/courses/' + id),
+  lessonDone: (courseId, lessonId) => API.request('/courses/' + courseId + '/lesson-done', { method: 'POST', body: { lesson_id: lessonId } }),
+  submitQuiz: (courseId, answers) => API.request('/courses/' + courseId + '/quiz', { method: 'POST', body: { answers } }),
+
+  /* ---------- COMMUNITY ---------- */
+  getPosts: (filters = {}) => {
+    const q = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+    return API.request('/posts' + (q ? '?' + q : ''));
+  },
+  createPost: (p) => API.request('/posts', { method: 'POST', body: p }),
+  getPost: (id) => API.request('/posts/' + id),
+  likePost: (id) => API.request('/posts/' + id + '/like', { method: 'POST' }),
+  addComment: (id, body) => API.request('/posts/' + id + '/comments', { method: 'POST', body: { body } }),
+  reportPost: (id, reason) => API.request('/posts/' + id + '/report', { method: 'POST', body: { reason } }),
+  reportComment: (id, reason) => API.request('/comments/' + id + '/report', { method: 'POST', body: { reason } }),
+
+  /* ---------- ANNOUNCEMENTS ---------- */
+  pendingAnnouncements: () => API.request('/announcements/pending'),
+  announcementSeen: (id, dismiss) => API.request('/announcements/' + id + '/seen', { method: 'POST', body: { dismiss: dismiss ? 1 : 0 } }),
+
   /* ---------- ADMIN ---------- */
   admin: {
     stats: () => API.request('/admin/stats'),
@@ -85,6 +113,20 @@ const API = {
     settings: () => API.request('/admin/settings'),
     saveSettings: (s) => API.request('/admin/settings', { method: 'POST', body: s }),
     broadcast: (n) => API.request('/admin/broadcast', { method: 'POST', body: n }),
+    testLLM: () => API.request('/admin/test-llm', { method: 'POST' }),
+    addCourse: (c) => API.request('/admin/courses', { method: 'POST', body: c }),
+    toggleCourse: (id, active) => API.request('/admin/courses/' + id, { method: 'PUT', body: { active: active ? 1 : 0 } }),
+    addLesson: (courseId, l) => API.request('/admin/courses/' + courseId + '/lessons', { method: 'POST', body: l }),
+    deleteLesson: (id) => API.request('/admin/lessons/' + id, { method: 'DELETE' }),
+    addQuiz: (courseId, q) => API.request('/admin/courses/' + courseId + '/quiz', { method: 'POST', body: q }),
+    deleteQuiz: (id) => API.request('/admin/quiz/' + id, { method: 'DELETE' }),
+    community: () => API.request('/admin/community'),
+    setPostStatus: (id, status) => API.request('/admin/posts/' + id, { method: 'PUT', body: { status } }),
+    setCommentStatus: (id, status) => API.request('/admin/comments/' + id, { method: 'PUT', body: { status } }),
+    resolveReport: (id) => API.request('/admin/reports/' + id + '/resolve', { method: 'POST' }),
+    announcements: () => API.request('/admin/announcements'),
+    addAnnouncement: (a) => API.request('/admin/announcements', { method: 'POST', body: a }),
+    toggleAnnouncement: (id, active) => API.request('/admin/announcements/' + id, { method: 'PUT', body: { active: active ? 1 : 0 } }),
   },
 };
 
