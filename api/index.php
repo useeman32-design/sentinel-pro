@@ -8,7 +8,7 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/engine.php';
 
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Auth-Token');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
@@ -30,6 +30,19 @@ switch (true) {
              'ext' => ['pdo_mysql' => extension_loaded('pdo_mysql'), 'pdo_sqlite' => extension_loaded('pdo_sqlite'),
                        'curl' => extension_loaded('curl'), 'zip' => class_exists('ZipArchive')],
              'time' => date('c')]);
+
+  case $route === 'debug-auth':
+    // Shows exactly which auth headers reach PHP (helps diagnose Apache stripping)
+    respond([
+      'x_auth_token_received' => isset($_SERVER['HTTP_X_AUTH_TOKEN']) && $_SERVER['HTTP_X_AUTH_TOKEN'] !== '',
+      'authorization_received' => ($_SERVER['HTTP_AUTHORIZATION'] ?? '') !== '',
+      'redirect_authorization_received' => ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '') !== '',
+      'apache_headers_has_auth' => function_exists('apache_request_headers')
+        ? array_key_exists('Authorization', array_change_key_case(apache_request_headers(), CASE_LOWER) + ['authorization' => null]) && !empty(array_change_key_case(apache_request_headers(), CASE_LOWER)['authorization'])
+        : 'n/a',
+      'token_parsed' => bearer() !== null,
+      'user_authenticated' => auth_user() !== null,
+    ]);
 
   case $route === 'register' && $method === 'POST': {
     rate_limit('register', client_ip(), 10, 3600);

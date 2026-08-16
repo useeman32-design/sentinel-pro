@@ -189,8 +189,10 @@ function set_setting(string $k, string $v): void {
   db()->prepare($sql)->execute([$k, $v]);
 }
 function bearer(): ?string {
-  // Apache configurations vary in where (or whether) they expose the
-  // Authorization header — check every known location.
+  // 1) custom header — immune to Apache's Authorization stripping
+  $x = $_SERVER['HTTP_X_AUTH_TOKEN'] ?? '';
+  if ($x) return trim($x);
+  // 2) Authorization header in every location Apache might put it
   $h = $_SERVER['HTTP_AUTHORIZATION']
     ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
     ?? '';

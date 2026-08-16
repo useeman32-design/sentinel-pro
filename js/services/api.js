@@ -17,7 +17,12 @@ const API = {
   async request(path, { method = 'GET', body, form } = {}) {
     const headers = {};
     if (!form) headers['Content-Type'] = 'application/json';
-    if (API.token()) headers['Authorization'] = 'Bearer ' + API.token();
+    if (API.token()) {
+      headers['Authorization'] = 'Bearer ' + API.token();
+      // Some Apache/XAMPP stacks strip the Authorization header entirely —
+      // send the token in a custom header too (never stripped).
+      headers['X-Auth-Token'] = API.token();
+    }
     let res;
     try {
       res = await fetch(API.BASE + path, { method, headers, body: form ? form : (body ? JSON.stringify(body) : undefined) });
