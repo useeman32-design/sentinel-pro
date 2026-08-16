@@ -179,27 +179,52 @@ switch (true) {
     $msg = trim($in['message'] ?? ''); if (!$msg) respond(['error' => 'Message required'], 422);
     $sid = preg_replace('/[^a-zA-Z0-9_-]/', '', $in['session_id'] ?? '');
     db()->prepare("INSERT INTO chat_messages(user_id,session_id,role,content) VALUES(?,?,'user',?)")->execute([$u['id'], $sid, $msg]);
-    $key = setting('gemini_api_key', '');
     $langNames = ['ha' => 'Hausa', 'ig' => 'Igbo', 'yo' => 'Yoruba', 'pcm' => 'Nigerian Pidgin'];
     $langInstr = isset($langNames[$in['lang'] ?? '']) ? ' Reply in ' . $langNames[$in['lang']] . ' language.' : '';
-    $reply = null;
-    if ($key) {
-      $hist = array_map(fn($h) => ['role' => ($h['role'] ?? '') === 'ai' ? 'model' : 'user', 'parts' => [['text' => $h['text'] ?? '']]],
-                        array_slice($in['history'] ?? [], -10));
-      $hist[] = ['role' => 'user', 'parts' => [['text' => $msg]]];
-      $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . urlencode($key));
-      curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
-        CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS=>json_encode([
-          'system_instruction'=>['parts'=>[['text'=>"You are Sentinel AI, an expert cybersecurity assistant protecting Nigeria's digital economy. Be concise and practical. Mention reporting channels (bank fraud line, ngCERT cert.gov.ng, EFCC) when users may be fraud victims. Never help with cybercrime." . $langInstr]]],
-          'contents'=>$hist, 'generationConfig'=>['temperature'=>0.4,'maxOutputTokens'=>800]])]);
-      $res = curl_exec($ch); curl_close($ch);
-      $j = json_decode($res ?: '', true);
-      $reply = $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
+    $system = "You are Sentinel AI, an expert cybersecurity assistant protecting Nigeria's digital economy. Be concise and practical. Mention reporting channels (bank fraud line, ngCERT cert.gov.ng, EFCC) when users may be fraud victims. Never help with cybercrime." . $langInstr;
+    $reply = null; $used = null;
+    $prov = setting('llm_provider', 'gemini'); if ($prov === 'grok') $prov = 'groq';
+    $order = $prov === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
+    foreach ($order as $p) {
+      if ($p === 'gemini' && setting('gemini_api_key', '')) {
+        $key = setting('gemini_api_key');
+        $hist = array_map(fn($h) => ['role' => ($h['role'] ?? '') === 'ai' ? 'model' : 'user', 'parts' => [['text' => $h['text'] ?? '']]],
+                          array_slice($in['history'] ?? [], -10));
+        $hist[] = ['role' => 'user', 'parts' => [['text' => $msg]]];
+        $gm = setting('gemini_model', 'gemini-flash-latest');
+        $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($gm) . ':generateContent?key=' . urlencode($key));
+        curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
+          CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
+          CURLOPT_POSTFIELDS=>json_encode([
+            'system_instruction'=>['parts'=>[['text'=>$system]]],
+            'contents'=>$hist, 'generationConfig'=>['temperature'=>0.4,'maxOutputTokens'=>1600,'thinkingConfig'=>['thinkingBudget'=>0]]])]);
+        $res = curl_exec($ch); curl_close($ch);
+        $j = json_decode($res ?: '', true);
+        $reply = null;
+        foreach (($j['candidates'][0]['content']['parts'] ?? []) as $part)
+          if (isset($part['text']) && trim($part['text']) !== '') { $reply = $part['text']; break; }
+        if ($reply) { $used = 'gemini'; break; }
+      }
+      if ($p === 'groq' && (setting('groq_api_key', '') ?: setting('grok_api_key', ''))) {
+        $gkey = setting('groq_api_key', '') ?: setting('grok_api_key', '');
+        $msgs = [['role' => 'system', 'content' => $system]];
+        foreach (array_slice($in['history'] ?? [], -10) as $h)
+          $msgs[] = ['role' => ($h['role'] ?? '') === 'ai' ? 'assistant' : 'user', 'content' => $h['text'] ?? ''];
+        $msgs[] = ['role' => 'user', 'content' => $msg];
+        $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+        curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
+          CURLOPT_HTTPHEADER=>['Content-Type: application/json', 'Authorization: Bearer ' . $gkey],
+          CURLOPT_POSTFIELDS=>json_encode(['model'=>setting('groq_model','llama-3.3-70b-versatile'),
+            'messages'=>$msgs, 'temperature'=>0.4, 'max_tokens'=>800])]);
+        $res = curl_exec($ch); curl_close($ch);
+        $j = json_decode($res ?: '', true);
+        $reply = $j['choices'][0]['message']['content'] ?? null;
+        if ($reply) { $used = 'groq'; break; }
+      }
     }
     $reply = $reply ?? "I couldn't reach the AI service. The admin can configure a Gemini API key in the Admin Panel → Settings to enable live answers. Meanwhile, try the scanners in the menu for link/email/SMS analysis.";
     db()->prepare("INSERT INTO chat_messages(user_id,session_id,role,content) VALUES(?,?,'ai',?)")->execute([$u['id'], $sid, $reply]);
-    respond(['reply' => $reply, 'source' => $key ? 'gemini' : 'fallback']);
+    respond(['reply' => $reply, 'source' => $used ?: 'fallback']);
   }
 
   /* ================= DATA ================= */
@@ -605,7 +630,8 @@ switch (true) {
              'llm_provider' => $prov,
              'gemini_key_set' => $g !== '', 'gemini_key_masked' => $g ? substr($g, 0, 6) . '••••••••' : '',
              'groq_key_set' => $x !== '', 'groq_key_masked' => $x ? substr($x, 0, 6) . '••••••••' : '',
-             'groq_model' => setting('groq_model', 'llama-3.3-70b-versatile')]);
+             'groq_model' => setting('groq_model', 'llama-3.3-70b-versatile'),
+             'gemini_model' => setting('gemini_model', 'gemini-flash-latest')]);
   }
   case $route === 'admin/settings' && $method === 'POST': {
     require_admin();
@@ -613,6 +639,7 @@ switch (true) {
     if (isset($in['groq_api_key'])) set_setting('groq_api_key', trim($in['groq_api_key']));
     if (isset($in['llm_provider']) && in_array($in['llm_provider'], ['gemini','groq'])) set_setting('llm_provider', $in['llm_provider']);
     if (isset($in['groq_model'])) set_setting('groq_model', trim($in['groq_model']));
+    if (isset($in['gemini_model'])) set_setting('gemini_model', trim($in['gemini_model']));
     if (isset($in['dev_mode'])) set_setting('dev_mode', $in['dev_mode'] ? '1' : '0');
     respond(['ok' => true]);
   }

@@ -295,14 +295,17 @@ final class Engine {
 
   static function callGemini(string $prompt): ?string {
     $key = setting('gemini_api_key', ''); if (!$key) return null;
-    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . urlencode($key));
+    $model = setting('gemini_model', 'gemini-flash-latest');
+    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . urlencode($key));
     curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>20,
       CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
       CURLOPT_POSTFIELDS=>json_encode(['contents'=>[['role'=>'user','parts'=>[['text'=>$prompt]]]],
-        'generationConfig'=>['temperature'=>0.1,'maxOutputTokens'=>400]])]);
+        'generationConfig'=>['temperature'=>0.1,'maxOutputTokens'=>1200,'thinkingConfig'=>['thinkingBudget'=>0]]])]);
     $res = curl_exec($ch); curl_close($ch);
     $j = json_decode($res ?: '', true);
-    return $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
+    foreach (($j['candidates'][0]['content']['parts'] ?? []) as $part)
+      if (isset($part['text']) && trim($part['text']) !== '') return $part['text'];
+    return null;
   }
 
   static function callGroq(string $prompt): ?string {

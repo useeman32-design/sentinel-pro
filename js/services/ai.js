@@ -15,7 +15,7 @@
    ============================================================ */
 
 const AI = {
-  MODEL: 'gemini-2.0-flash',
+  MODEL: 'gemini-flash-latest',
   ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
 
   SYSTEM_PROMPT: `You are Sentinel AI, an expert cybersecurity assistant protecting Nigeria's digital economy.
