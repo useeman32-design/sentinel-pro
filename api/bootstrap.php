@@ -118,6 +118,8 @@ function migrate(PDO $pdo): void {
     "CREATE TABLE IF NOT EXISTS announcement_views (id $id, announcement_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
       shown_count INTEGER NOT NULL DEFAULT 0, last_shown_at INTEGER DEFAULT 0, dismissed INTEGER NOT NULL DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS rate_limits (bucket VARCHAR(120) PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0)",
+    "CREATE TABLE IF NOT EXISTS translations (id $id, obj_type VARCHAR(20) NOT NULL, obj_id INTEGER NOT NULL,
+      lang VARCHAR(6) NOT NULL, field VARCHAR(30) NOT NULL, content TEXT NOT NULL, created_at $now)",
   ];
   foreach ($tables as $sql) $pdo->exec($sql);
   // column upgrades on existing installs

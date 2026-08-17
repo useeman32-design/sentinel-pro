@@ -208,6 +208,8 @@ const App = {
 
   init() {
     App.applyTheme();
+    I18N.setLang(State.settings.lang || 'en');
+    I18N.observe();
     Charts.initTooltips();
     document.getElementById('splash-logo').innerHTML = logoSVG(84);
     window.addEventListener('hashchange', () => App.render());

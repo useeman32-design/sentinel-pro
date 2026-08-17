@@ -345,7 +345,14 @@ switch (true) {
   /* ================= CYBER ACADEMY ================= */
   case $route === 'courses' && $method === 'GET': {
     $u = require_auth();
+    require_once __DIR__ . '/engine.php';
+    $lang = in_array($_GET['lang'] ?? '', ['ha','ig','yo','pcm']) ? $_GET['lang'] : '';
     $courses = db()->query('SELECT * FROM courses WHERE active=1 ORDER BY id')->fetchAll();
+    if ($lang) foreach ($courses as &$cc) {
+      $cc['title'] = Engine::translate('course', (int)$cc['id'], $lang, 'title', $cc['title']);
+      $cc['description'] = Engine::translate('course', (int)$cc['id'], $lang, 'description', $cc['description'] ?? '');
+    }
+    unset($cc);
     $prog = db()->prepare('SELECT * FROM course_progress WHERE user_id=?');
     $prog->execute([$u['id']]);
     $pmap = [];
@@ -366,9 +373,29 @@ switch (true) {
     $cid = (int)$m[1];
     $c = db()->query('SELECT * FROM courses WHERE id=' . $cid . ' AND active=1')->fetch();
     if (!$c) respond(['error' => 'Course not found'], 404);
+    require_once __DIR__ . '/engine.php';
+    $lang = in_array($_GET['lang'] ?? '', ['ha','ig','yo','pcm']) ? $_GET['lang'] : '';
+    if ($lang) {
+      $c['title'] = Engine::translate('course', $cid, $lang, 'title', $c['title']);
+      $c['description'] = Engine::translate('course', $cid, $lang, 'description', $c['description'] ?? '');
+    }
     $c['lessons'] = db()->query('SELECT id,position,title,body_html,video_url FROM lessons WHERE course_id=' . $cid . ' ORDER BY position')->fetchAll();
+    if ($lang) foreach ($c['lessons'] as &$l) {
+      $l['title'] = Engine::translate('lesson', (int)$l['id'], $lang, 'title', $l['title']);
+      $l['body_html'] = Engine::translate('lesson', (int)$l['id'], $lang, 'body', $l['body_html'] ?? '');
+    }
+    unset($l);
     $qz = db()->query('SELECT id,question,options_json FROM quiz_questions WHERE course_id=' . $cid)->fetchAll();
-    foreach ($qz as &$q) { $q['options'] = json_decode($q['options_json'], true); unset($q['options_json']); }
+    foreach ($qz as &$q) {
+      $q['options'] = json_decode($q['options_json'], true);
+      unset($q['options_json']);
+      if ($lang) {
+        $q['question'] = Engine::translate('quiz', (int)$q['id'], $lang, 'question', $q['question']);
+        $tOpts = Engine::translate('quiz', (int)$q['id'], $lang, 'options', json_encode($q['options'], JSON_UNESCAPED_UNICODE));
+        $dec = json_decode($tOpts, true);
+        if (is_array($dec) && count($dec) === count($q['options'])) $q['options'] = $dec;
+      }
+    }
     $c['quiz'] = $qz;
     $st = db()->prepare('SELECT * FROM course_progress WHERE user_id=? AND course_id=?');
     $st->execute([$u['id'], $cid]);

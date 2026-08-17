@@ -321,6 +321,53 @@ final class Engine {
     return $j['choices'][0]['message']['content'] ?? null;
   }
 
+  /* ---------------- AI translation (courses etc.) ---------------- */
+  static function translate(string $objType, int $objId, string $lang, string $field, string $text): string {
+    $names = ['ha' => 'Hausa', 'ig' => 'Igbo', 'yo' => 'Yoruba', 'pcm' => 'Nigerian Pidgin'];
+    if (!isset($names[$lang]) || trim($text) === '') return $text;
+    // cache lookup ('__FAILED__' rows = negative cache, retried after 1h)
+    $st = db()->prepare('SELECT content, created_at FROM translations WHERE obj_type=? AND obj_id=? AND lang=? AND field=?');
+    $st->execute([$objType, $objId, $lang, $field]);
+    if ($row = $st->fetch()) {
+      if ($row['content'] !== '__FAILED__') return $row['content'];
+      if (time() - strtotime($row['created_at']) < 3600) return $text; // don't retry yet
+      db()->prepare('DELETE FROM translations WHERE obj_type=? AND obj_id=? AND lang=? AND field=?')
+         ->execute([$objType, $objId, $lang, $field]); // expired → retry below
+    }
+    // translate via LLM (Groq preferred: fast + generous free tier)
+    $isJson = $field === 'options';
+    $prompt = ($isJson
+      ? "Translate each string in this JSON array of quiz options from English to {$names[$lang]}. Return ONLY a valid JSON array of the same length, same order, no explanations."
+      : "Translate the following cybersecurity education content from English to {$names[$lang]}. "
+        . "Keep ALL HTML tags exactly as they are (only translate the human-readable text). "
+        . "Keep technical terms like BVN, OTP, PIN, SMS, WhatsApp, URL understandable — you may keep them in English. "
+        . "Return ONLY the translation, no explanations.")
+      . "\n\n" . mb_substr($text, 0, 6000);
+    $out = self::callGroq($prompt) ?: self::callGemini($prompt);
+    $fail = function () use ($objType, $objId, $lang, $field, $text) {
+      // negative-cache the failure for 1h so each page view doesn't re-hit the LLM
+      try {
+        db()->prepare('INSERT INTO translations(obj_type,obj_id,lang,field,content) VALUES(?,?,?,?,?)')
+           ->execute([$objType, $objId, $lang, $field, '__FAILED__']);
+      } catch (Throwable $ex) {}
+      return $text;
+    };
+    if (!$out || mb_strlen(trim($out)) < 2) return $fail();
+    $out = trim($out);
+    // strip markdown code fences if the model added them
+    $out = preg_replace('/^```[a-z]*\s*|\s*```$/m', '', $out);
+    $out = trim($out);
+    if ($isJson) {
+      if (preg_match('/\[.*\]/s', $out, $mm)) $out = $mm[0];
+      if (json_decode($out, true) === null) return $fail(); // invalid array → fallback
+    }
+    try {
+      db()->prepare('INSERT INTO translations(obj_type,obj_id,lang,field,content) VALUES(?,?,?,?,?)')
+         ->execute([$objType, $objId, $lang, $field, $out]);
+    } catch (Throwable $ex) {}
+    return $out;
+  }
+
   /* ---------------- shared ---------------- */
   static function signatures(string $channel): array {
     $st = db()->prepare('SELECT category,pattern,weight FROM signatures WHERE channel=? AND enabled=1');

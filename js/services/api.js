@@ -75,8 +75,8 @@ const API = {
   createReportFiltered: (from, to, types) => API.request('/reports', { method: 'POST', body: { from, to, types } }),
 
   /* ---------- ACADEMY ---------- */
-  getCourses: () => API.request('/courses'),
-  getCourse: (id) => API.request('/courses/' + id),
+  getCourses: () => API.request('/courses?lang=' + ((State.settings && State.settings.lang) || 'en')),
+  getCourse: (id) => API.request('/courses/' + id + '?lang=' + ((State.settings && State.settings.lang) || 'en')),
   lessonDone: (courseId, lessonId) => API.request('/courses/' + courseId + '/lesson-done', { method: 'POST', body: { lesson_id: lessonId } }),
   submitQuiz: (courseId, answers) => API.request('/courses/' + courseId + '/quiz', { method: 'POST', body: { answers } }),
 
