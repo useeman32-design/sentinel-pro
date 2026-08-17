@@ -744,6 +744,46 @@ switch (true) {
     respond(['ok' => true]);
   }
 
+  /* ---- admin: translations review/edit ---- */
+  case $route === 'admin/translations' && $method === 'GET': {
+    require_admin();
+    $lang = in_array($_GET['lang'] ?? '', ['ha','ig','yo','pcm']) ? $_GET['lang'] : 'ha';
+    $rows = db()->prepare('SELECT * FROM translations WHERE lang=? ORDER BY obj_type, obj_id, field');
+    $rows->execute([$lang]);
+    $items = $rows->fetchAll();
+    // attach source (English) text so the reviewer sees both sides
+    foreach ($items as &$t) {
+      $src = '';
+      try {
+        if ($t['obj_type'] === 'course') {
+          $c = db()->query('SELECT title, description FROM courses WHERE id=' . (int)$t['obj_id'])->fetch();
+          $src = $t['field'] === 'title' ? ($c['title'] ?? '') : ($c['description'] ?? '');
+        } elseif ($t['obj_type'] === 'lesson') {
+          $l = db()->query('SELECT title, body_html FROM lessons WHERE id=' . (int)$t['obj_id'])->fetch();
+          $src = $t['field'] === 'title' ? ($l['title'] ?? '') : ($l['body_html'] ?? '');
+        } elseif ($t['obj_type'] === 'quiz') {
+          $q = db()->query('SELECT question, options_json FROM quiz_questions WHERE id=' . (int)$t['obj_id'])->fetch();
+          $src = $t['field'] === 'question' ? ($q['question'] ?? '') : ($q['options_json'] ?? '');
+        }
+      } catch (Throwable $e) {}
+      $t['source'] = $src;
+    }
+    respond(['items' => $items]);
+  }
+  case preg_match('~^admin/translations/(\d+)$~', $route, $m) && $method === 'PUT': {
+    require_admin();
+    $content = $in['content'] ?? '';
+    if (trim($content) === '') respond(['error' => 'Content cannot be empty'], 422);
+    db()->prepare('UPDATE translations SET content=? WHERE id=?')->execute([$content, (int)$m[1]]);
+    respond(['ok' => true]);
+  }
+  case preg_match('~^admin/translations/(\d+)$~', $route, $m) && $method === 'DELETE': {
+    // delete = force re-translation by AI on next request
+    require_admin();
+    db()->prepare('DELETE FROM translations WHERE id=?')->execute([(int)$m[1]]);
+    respond(['ok' => true]);
+  }
+
   /* ---- admin: announcements ---- */
   case $route === 'admin/announcements' && $method === 'GET': {
     require_admin();

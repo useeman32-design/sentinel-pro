@@ -14,7 +14,7 @@ const AdminView = {
     const tabs = [
       ['overview', 'Overview'], ['users', 'Users'], ['signatures', 'Signatures'],
       ['blocklist', 'Blocklist'], ['intel', 'Threat Intel'], ['academy', 'Academy'],
-      ['community', 'Community'], ['announce', 'Announcements'], ['settings', 'Settings'],
+      ['community', 'Community'], ['announce', 'Announcements'], ['translations', 'Translations'], ['settings', 'Settings'],
     ];
     return `
       <div class="tabs" style="margin-bottom:16px" id="admin-tabs">
@@ -499,5 +499,82 @@ const AdminView = {
       });
       toast('Announcement published.', 'ok'); AdminView.loadTab();
     });
+  },
+
+  /* ---------------- TRANSLATIONS REVIEW ---------------- */
+  _trLang: 'ha',
+  async tab_translations(body) {
+    const langNames = { ha: 'Hausa', ig: 'Igbo', yo: 'Yorùbá', pcm: 'Pidgin' };
+    const { items } = await API.admin.translations(AdminView._trLang);
+    const typeLabel = { course: '📚 Course', lesson: '📖 Lesson', quiz: '📝 Quiz' };
+    body.innerHTML = `
+      <div class="card">
+        <div class="card-title">🌍 Translation Review<span class="spacer"></span>
+          <div class="tabs" style="padding:4px" id="tr-langs">
+            ${Object.entries(langNames).map(([k, n]) => `<button class="tab ${AdminView._trLang === k ? 'active' : ''}" data-trl="${k}">${n}</button>`).join('')}
+          </div></div>
+        <p class="hint" style="margin-bottom:14px">AI translations of course content, cached in the database. Edit any entry to correct it (native-speaker review), or delete it to force a fresh AI re-translation on next request. HTML tags in lesson bodies must be kept intact.</p>
+        ${items.length ? items.map(t => `
+          <div class="card" style="margin-bottom:10px;padding:14px;background:var(--surface-2)" id="tr-row-${t.id}">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">
+              <span class="tag">${typeLabel[t.obj_type] || t.obj_type} #${t.obj_id}</span>
+              <span class="tag">${esc(t.field)}</span>
+              ${t.content === '__FAILED__' ? '<span class="pill danger">FAILED — will retry</span>' : ''}
+              <span class="spacer" style="flex:1"></span>
+              <button class="btn btn-ghost btn-sm" data-tr-edit="${t.id}">✏️ Edit</button>
+              <button class="btn btn-danger btn-sm" data-tr-del="${t.id}" title="Delete — AI re-translates on next request">↻ Redo</button>
+            </div>
+            <div class="grid grid-2" style="gap:10px">
+              <div><div class="hint" style="margin-bottom:4px">🇬🇧 English source</div>
+                <div style="font-size:12.5px;line-height:1.55;max-height:110px;overflow:auto;color:var(--text-dim)">${esc((t.source || '').replace(/<[^>]+>/g, ' ').slice(0, 400)) || '<i>source removed</i>'}</div></div>
+              <div><div class="hint" style="margin-bottom:4px">${langNames[AdminView._trLang]} translation</div>
+                <div style="font-size:12.5px;line-height:1.55;max-height:110px;overflow:auto" id="tr-content-${t.id}">${esc((t.content || '').replace(/<[^>]+>/g, ' ').slice(0, 400))}</div></div>
+            </div>
+            <div id="tr-editor-${t.id}" hidden style="margin-top:10px">
+              <textarea class="input" id="tr-text-${t.id}" style="min-height:120px;font-size:12.5px"></textarea>
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+                <button class="btn btn-ghost btn-sm" data-tr-cancel="${t.id}">Cancel</button>
+                <button class="btn btn-primary btn-sm" style="width:auto" data-tr-save="${t.id}">Save Correction</button>
+              </div>
+            </div>
+          </div>`).join('')
+        : `<div class="empty">🌍<div style="font-weight:600;color:var(--text);margin-top:8px">No cached translations for ${langNames[AdminView._trLang]} yet</div><div class="hint" style="margin-top:4px">Translations appear here after users browse courses in this language.</div></div>`}
+      </div>`;
+
+    body.querySelector('#tr-langs').addEventListener('click', e => {
+      const t = e.target.closest('[data-trl]'); if (!t) return;
+      AdminView._trLang = t.dataset.trl;
+      AdminView.loadTab();
+    });
+    const raw = {};
+    items.forEach(t => raw[t.id] = t.content);
+    body.querySelectorAll('[data-tr-edit]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.trEdit;
+      const ed = document.getElementById('tr-editor-' + id);
+      document.getElementById('tr-text-' + id).value = raw[id] === '__FAILED__' ? '' : raw[id];
+      ed.hidden = !ed.hidden;
+    }));
+    body.querySelectorAll('[data-tr-cancel]').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('tr-editor-' + b.dataset.trCancel).hidden = true;
+    }));
+    body.querySelectorAll('[data-tr-save]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.trSave;
+      const v = document.getElementById('tr-text-' + id).value;
+      if (!v.trim()) return toast('Translation cannot be empty.', 'err');
+      try {
+        await API.admin.updateTranslation(id, v);
+        raw[id] = v;
+        document.getElementById('tr-content-' + id).textContent = v.replace(/<[^>]+>/g, ' ').slice(0, 400);
+        document.getElementById('tr-editor-' + id).hidden = true;
+        toast('Translation corrected — live for all users immediately.', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+    }));
+    body.querySelectorAll('[data-tr-del]').forEach(b => b.addEventListener('click', async () => {
+      try {
+        await API.admin.deleteTranslation(b.dataset.trDel);
+        toast('Deleted — AI will re-translate on next request.', 'ok');
+        AdminView.loadTab();
+      } catch (e) { toast(e.message, 'err'); }
+    }));
   },
 };
